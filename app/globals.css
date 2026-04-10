@@ -1,1 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+
+:root {
+  --neon-cyan: #00f5ff;
+  --neon-gold: #ffd700;
+  --felt: #0a1a0f;
+  --border: rgba(0, 245, 255, 0.15);
+  --text-primary: #e8f5e8;
+  --text-muted: rgba(0, 245, 255, 0.5);
+  --text-result-win: #00f5ff;
+  --text-result-lose: #ff2d78;
+  --text-result-push: #ffd700;
+  --shoe-card-start: hsl(160, 60%, 20%);
+  --shoe-card-end: hsl(160, 60%, 35%);
+  --shoe-border: rgba(0, 245, 255, 0.3);
+  --shoe-marker: rgba(0, 245, 255, 0.6);
+  --active-hand-bg: rgba(0, 245, 255, 0.05);
+  --active-hand-border: rgba(0, 245, 255, 0.4);
+  --next-round-bg: rgba(0, 245, 255, 0.1);
+  --next-round-border: rgba(0, 245, 255, 0.4);
+  --next-round-color: #00f5ff;
+  --insurance-color: #ffd700;
+  --clear-btn-bg: rgba(255, 255, 255, 0.08);
+  --clear-btn-border: rgba(255, 255, 255, 0.2);
+  --clear-btn-color: #e8f5e8;
+  --top-border: rgba(0, 245, 255, 0.15);
+}
+
+[data-theme="light"] {
+  --neon-cyan: #8b6508;
+  --neon-gold: #b8860b;
+  --felt: #f0ebe0;
+  --border: rgba(139, 101, 8, 0.2);
+  --text-primary: #1a1200;
+  --text-muted: rgba(100, 70, 0, 0.6);
+  --text-result-win: #1a6b3a;
+  --text-result-lose: #c0392b;
+  --text-result-push: #8b6508;
+  --shoe-card-start: hsl(40, 50%, 55%);
+  --shoe-card-end: hsl(40, 50%, 75%);
+  --shoe-border: rgba(139, 101, 8, 0.4);
+  --shoe-marker: rgba(139, 101, 8, 0.7);
+  --active-hand-bg: rgba(139, 101, 8, 0.08);
+  --active-hand-border: rgba(139, 101, 8, 0.4);
+  --next-round-bg: rgba(139, 101, 8, 0.1);
+  --next-round-border: rgba(139, 101, 8, 0.4);
+  --next-round-color: #6b4d06;
+  --insurance-color: #8b6508;
+  --clear-btn-bg: rgba(0, 0, 0, 0.06);
+  --clear-btn-border: rgba(0, 0, 0, 0.15);
+  --clear-btn-color: #1a1200;
+  --top-border: rgba(139, 101, 8, 0.2);
+}
+
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+body {
+  background-color: var(--felt) !important;
+  font-family: 'DM Mono', monospace;
+  color: var(--text-primary);
+}
+
+.felt-texture {
+  background-color: var(--felt) !important;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.04) 2px,
+      rgba(255,255,255,0.04) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.04) 2px,
+      rgba(255,255,255,0.04) 4px
+    );
+}
+
+[data-theme="light"] .felt-texture {
+  background-color: var(--felt) !important;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.06) 2px,
+      rgba(0,0,0,0.06) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.06) 2px,
+      rgba(0,0,0,0.06) 4px
+    );
+}
+
+.neon-text {
+  color: var(--neon-cyan);
+}
+
+.neon-gold-text {
+  color: var(--neon-gold);
+}
+
+:root .neon-text {
+  text-shadow: 0 0 10px rgba(0, 245, 255, 0.4);
+}
+
+:root .neon-gold-text {
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+[data-theme="light"] .neon-text,
+[data-theme="light"] .neon-gold-text {
+  text-shadow: none;
+}
+
+@keyframes pulse-neon {
+  0%, 100% { box-shadow: 0 0 5px rgba(0, 245, 255, 0.3), 0 0 20px rgba(0, 245, 255, 0.1); }
+  50% { box-shadow: 0 0 10px rgba(0, 245, 255, 0.6), 0 0 40px rgba(0, 245, 255, 0.2); }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 5px rgba(139, 101, 8, 0.3), 0 0 15px rgba(139, 101, 8, 0.1); }
+  50% { box-shadow: 0 0 8px rgba(139, 101, 8, 0.5), 0 0 25px rgba(139, 101, 8, 0.2); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-hint {
+  0%, 100% { box-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+  50% { box-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
+}
+
+.btn-appear {
+  animation: fade-in 0.3s ease forwards;
+}
+
+:root .neon-pulse {
+  animation: pulse-neon 2s ease-in-out infinite;
+}
+
+[data-theme="light"] .neon-pulse {
+  animation: pulse-gold 2s ease-in-out infinite;
+}

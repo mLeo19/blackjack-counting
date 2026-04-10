@@ -11,10 +11,13 @@ import {
   takeInsurance as engineInsurance,
   declineInsurance as engineDeclineInsurance,
   newRound as engineNewRound,
-  bringToTop
+  bringToTop,
 } from "@/lib/blackjack/engine";
 import { createHand, isBlackjack, isBust } from "@/lib/blackjack/hand";
 import { useShoeContext } from "@/context/ShoeContext";
+import { useCountStore } from "@/store/countStore";
+import { getHiLoValue, calculateTrueCount } from "@/lib/counting/hiLo";
+import { decksRemaining } from "@/lib/blackjack/deck";
 
 export interface FlyingCardData {
   id: string;
@@ -33,10 +36,11 @@ let flyingCardIdCounter = 0;
 
 export function useGameController() {
   const { getShoePosition, getDealerPosition, getPlayerPosition } = useShoeContext();
+  const { addCount, setTrueCount, resetCount, resetHint, clearHistory } = useCountStore();
 
   const [visibleGame, setVisibleGame] = useState<GameState>(createInitialState());
+  const [visibleBankroll, setVisibleBankroll] = useState(createInitialState().bankroll);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [visibleBankroll, setVisibleBankroll] = useState(createInitialState().bankroll); // for smooth bankroll animation
   const [flyingCards, setFlyingCards] = useState<FlyingCardData[]>([]);
   const resolvedGame = useRef<GameState>(createInitialState());
   const pendingResolves = useRef<Record<string, () => void>>({});
@@ -70,7 +74,7 @@ export function useGameController() {
     });
   }, []);
 
-  // ── Reveal card in hand state ──
+  // ── Reveal card in hand state and update count ──
   const revealInHand = useCallback((
     target: "player" | "dealer",
     cardIndex: number,
@@ -78,6 +82,16 @@ export function useGameController() {
     card: Card,
     faceDown: boolean,
   ) => {
+    // update count BEFORE setVisibleGame — never inside an updater function
+    if (!faceDown) {
+      const hiLoValue = getHiLoValue(card);
+      const currentRunning = useCountStore.getState().runningCount;
+      const newRunning = currentRunning + hiLoValue;
+      addCount(hiLoValue, card.rank);
+      const decksLeft = decksRemaining(resolvedGame.current.shoe);
+      setTrueCount(calculateTrueCount(newRunning, decksLeft));
+    }
+
     setVisibleGame((prev) => {
       if (target === "dealer") {
         const updatedCards = [...prev.dealerHand.cards];
@@ -93,7 +107,7 @@ export function useGameController() {
         return { ...prev, playerHands: updatedHands };
       }
     });
-  }, []);
+  }, [addCount, setTrueCount]);
 
   // ── Deal one card: fly it, then reveal in hand ──
   const dealOneCard = useCallback(async (
@@ -113,27 +127,29 @@ export function useGameController() {
 
   // ── Deal ──────────────────────────────────────────────────────────────────
   const deal = useCallback(async (bet: number) => {
-    if (isProcessing.current) return; // ← block immediately
+    if (isProcessing.current) return;
     isProcessing.current = true;
     setIsAnimating(true);
+
     const resolved = engineDeal(resolvedGame.current, bet);
     resolvedGame.current = resolved;
-    console.log("resolved.bankroll after deal:", resolved.bankroll);
-    console.log("resolved.phase:", resolved.phase);
-    
+
+    // reset count if shoe was reshuffled
+    if (resolved.shoe.length >= 308) {
+      resetCount();
+    }
 
     const p1 = resolved.playerHands[0].cards[0];
     const d1 = resolved.dealerHand.cards[0];
     const p2 = resolved.playerHands[0].cards[1];
     const d2 = resolved.dealerHand.cards[1];
 
-    //setVisibleBankroll(visibleBankroll - bet); // ← show deduction immediately
     setVisibleBankroll((prev) => prev - bet);
-
+    // Clear count history
+    clearHistory();
     setVisibleGame((prev) => ({
       ...prev,
-      phase: "dealing" as any, // ← new phase that hides the deal button
-      //bankroll: resolved.bankroll,
+      phase: "dealing" as any,
       shoe: resolved.shoe,
       playerHands: [{ ...createHand(bet), cards: [] }],
       dealerHand: { ...createHand(), cards: [] },
@@ -160,8 +176,8 @@ export function useGameController() {
     }
 
     setIsAnimating(false);
-    isProcessing.current = false; // ← unblock at the end
-  }, [dealOneCard]);
+    isProcessing.current = false;
+  }, [dealOneCard, resetCount]);
 
   // ── Hit ───────────────────────────────────────────────────────────────────
   const hit = useCallback(async () => {
@@ -187,8 +203,64 @@ export function useGameController() {
       await runSettlement(resolved);
     }
 
+    resetHint();
     setIsAnimating(false);
-  }, [visibleGame, dealOneCard]);
+  }, [visibleGame, dealOneCard, resetHint]);
+
+  // ── Settlement ────────────────────────────────────────────────────────────
+  const runSettlement = useCallback(async (resolved: GameState) => {
+    // update count for hole card BEFORE flipping it
+    const holeCard = resolved.dealerHand.cards[1];
+    if (holeCard) {
+      const hiLoValue = getHiLoValue(holeCard);
+      const currentRunning = useCountStore.getState().runningCount;
+      const newRunning = currentRunning + hiLoValue;
+      addCount(hiLoValue, holeCard.rank);
+      const decksLeft = decksRemaining(resolved.shoe);
+      setTrueCount(calculateTrueCount(newRunning, decksLeft));
+    }
+
+    // flip hole card
+    setVisibleGame((prev) => ({
+      ...prev,
+      dealerHand: {
+        ...prev.dealerHand,
+        cards: prev.dealerHand.cards.map((c) => ({ ...c, faceDown: false })),
+      },
+    }));
+
+    const playerHasBlackjack = resolved.playerHands.some(
+      (h) => isBlackjack(h.cards) && !h.isSplit
+    );
+    const allBustOrSurrender = resolved.playerHands.every(
+      (h) => isBust(h.cards) || h.isSurrendered
+    );
+
+    await sleep(playerHasBlackjack || allBustOrSurrender ? 300 : 600);
+
+    if (!playerHasBlackjack && !allBustOrSurrender) {
+      const resolvedDealerCards = resolved.dealerHand.cards;
+      for (let i = 2; i < resolvedDealerCards.length; i++) {
+        await dealOneCard(resolvedDealerCards[i], "dealer", i, 0, false);
+        await sleep(80);
+      }
+    }
+
+    await sleep(playerHasBlackjack || allBustOrSurrender ? 100 : 300);
+    setVisibleBankroll(resolved.bankroll);
+
+    if (playerHasBlackjack || allBustOrSurrender) {
+      setVisibleGame((prev) => ({
+        ...resolved,
+        dealerHand: {
+          ...resolved.dealerHand,
+          cards: prev.dealerHand.cards,
+        },
+      }));
+    } else {
+      setVisibleGame(resolved);
+    }
+  }, [dealOneCard, addCount, setTrueCount]);
 
   // ── Stand ─────────────────────────────────────────────────────────────────
   const stand = useCallback(async () => {
@@ -196,21 +268,21 @@ export function useGameController() {
     resolvedGame.current = resolved;
     setIsAnimating(true);
 
-    // if still playerTurn, more split hands remain — just advance
     if (resolved.phase === "playerTurn") {
       setVisibleGame((prev) => ({
         ...prev,
         phase: resolved.phase,
         activeHandIndex: resolved.activeHandIndex,
       }));
+      resetHint();
       setIsAnimating(false);
       return;
     }
 
-    // all hands done — run settlement
     await runSettlement(resolved);
+    resetHint();
     setIsAnimating(false);
-  }, []);
+  }, [runSettlement, resetHint]);
 
   // ── Double Down ───────────────────────────────────────────────────────────
   const doubleDown = useCallback(async () => {
@@ -219,8 +291,6 @@ export function useGameController() {
     setIsAnimating(true);
 
     const handIndex = visibleGame.activeHandIndex;
-
-    // deduct the extra bet immediately
     const activeBet = visibleGame.playerHands[handIndex].bet;
     setVisibleBankroll((prev) => prev - activeBet);
 
@@ -229,7 +299,6 @@ export function useGameController() {
 
     await dealOneCard(newCard, "player", newCardIndex, handIndex, false);
 
-    // if still playerTurn, more split hands remain — just advance
     if (resolved.phase === "playerTurn") {
       setVisibleGame((prev) => ({
         ...prev,
@@ -238,72 +307,15 @@ export function useGameController() {
         shoe: resolved.shoe,
         bankroll: resolved.bankroll,
       }));
+      resetHint();
       setIsAnimating(false);
       return;
     }
 
     await runSettlement(resolved);
+    resetHint();
     setIsAnimating(false);
-  }, [visibleGame, dealOneCard]);
-
-  // ── Insurance ─────────────────────────────────────────────────────────────
-  const takeInsurance = useCallback(() => {
-    const resolved = engineInsurance(resolvedGame.current);
-    resolvedGame.current = resolved;
-    setVisibleBankroll(resolved.bankroll); // ← deduct insurance bet immediately
-    setVisibleGame(resolved);
-  }, []);
-
-  const declineInsurance = useCallback(() => {
-    const resolved = engineDeclineInsurance(resolvedGame.current);
-    resolvedGame.current = resolved;
-    setVisibleGame(resolved);
-  }, []);
-
-  // ── Settlement ────────────────────────────────────────────────────────────
-  const runSettlement = useCallback(async (resolved: GameState) => {
-  const playerHasBlackjack = resolved.playerHands.some(
-    (h) => isBlackjack(h.cards) && !h.isSplit
-  );
-  const allBustOrSurrender = resolved.playerHands.every(
-    (h) => isBust(h.cards) || h.isSurrendered
-  );
-
-  // flip hole card
-  setVisibleGame((prev) => ({
-    ...prev,
-    dealerHand: {
-      ...prev.dealerHand,
-      cards: prev.dealerHand.cards.map((c) => ({ ...c, faceDown: false })),
-    },
-  }));
-
-  // shorter wait when no dealer draw needed
-  await sleep(playerHasBlackjack || allBustOrSurrender ? 300 : 600);
-
-  if (!playerHasBlackjack && !allBustOrSurrender) {
-    const resolvedDealerCards = resolved.dealerHand.cards;
-    for (let i = 2; i < resolvedDealerCards.length; i++) {
-      await dealOneCard(resolvedDealerCards[i], "dealer", i, 0, false);
-      await sleep(80);
-    }
-  }
-
-  await sleep(playerHasBlackjack || allBustOrSurrender ? 100 : 300);
-  setVisibleBankroll(resolved.bankroll);
-
-  if (playerHasBlackjack || allBustOrSurrender) {
-    setVisibleGame((prev) => ({
-      ...resolved,
-      dealerHand: {
-        ...resolved.dealerHand,
-        cards: prev.dealerHand.cards,
-      },
-    }));
-  } else {
-    setVisibleGame(resolved);
-  }
-}, [dealOneCard]);
+  }, [visibleGame, dealOneCard, runSettlement, resetHint]);
 
   // ── Split ─────────────────────────────────────────────────────────────────
   const split = useCallback(async () => {
@@ -311,11 +323,8 @@ export function useGameController() {
     resolvedGame.current = resolved;
     const activeBet = visibleGame.playerHands[visibleGame.activeHandIndex].bet;
     setVisibleBankroll((prev) => prev - activeBet);
-    //setVisibleGame(resolved);
 
-    // if splitting Aces auto-resolved to roundOver, run settlement
     if (resolved.phase === "roundOver") {
-      // don't dump resolved state yet — let runSettlement handle the reveal
       setVisibleGame((prev) => ({
         ...prev,
         playerHands: resolved.playerHands,
@@ -329,7 +338,9 @@ export function useGameController() {
     } else {
       setVisibleGame(resolved);
     }
-  }, [visibleGame, runSettlement]);
+
+    resetHint();
+  }, [visibleGame, runSettlement, resetHint]);
 
   // ── Surrender ─────────────────────────────────────────────────────────────
   const surrender = useCallback(async () => {
@@ -337,8 +348,23 @@ export function useGameController() {
     resolvedGame.current = resolved;
     setIsAnimating(true);
     await runSettlement(resolved);
+    resetHint();
     setIsAnimating(false);
-  }, [runSettlement]);
+  }, [runSettlement, resetHint]);
+
+  // ── Insurance ─────────────────────────────────────────────────────────────
+  const takeInsurance = useCallback(() => {
+    const resolved = engineInsurance(resolvedGame.current);
+    resolvedGame.current = resolved;
+    setVisibleBankroll(resolved.bankroll);
+    setVisibleGame(resolved);
+  }, []);
+
+  const declineInsurance = useCallback(() => {
+    const resolved = engineDeclineInsurance(resolvedGame.current);
+    resolvedGame.current = resolved;
+    setVisibleGame(resolved);
+  }, []);
 
   // ── New Round ─────────────────────────────────────────────────────────────
   const newRound = useCallback(() => {
@@ -347,23 +373,23 @@ export function useGameController() {
     setFlyingCards([]);
     setVisibleGame(resolved);
     setVisibleBankroll(resolved.bankroll);
-  }, []);
+    resetHint();
+  }, [resetHint]);
 
+  // ── Debug ─────────────────────────────────────────────────────────────────
   const debugDeal = useCallback(async (
     targets: { rank: string; suit?: string }[]
   ) => {
     if (isProcessing.current) return;
-    // targets = [p1, d1, p2, d2]
     const stateWithCards = bringToTop(resolvedGame.current, targets);
     resolvedGame.current = stateWithCards;
-    // now deal normally with the reordered shoe
     await deal(50);
   }, [deal]);
 
   const forceReshuffle = useCallback(() => {
     resolvedGame.current = {
       ...resolvedGame.current,
-      shoe: resolvedGame.current.shoe.slice(0, 10), // keep only 10 cards
+      shoe: resolvedGame.current.shoe.slice(0, 10),
     };
     setVisibleGame((prev) => ({
       ...prev,

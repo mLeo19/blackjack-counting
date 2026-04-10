@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ShoeProvider } from "@/context/ShoeContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata: Metadata = {
   title: "Blackjack",
@@ -11,11 +12,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <ShoeProvider>
-          <main className="min-h-screen bg-green-900 text-white">
-            {children}
-          </main>
-        </ShoeProvider>
+        <ThemeProvider>
+          <ShoeProvider>
+            <main className="min-h-screen">
+              {children}
+            </main>
+          </ShoeProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
