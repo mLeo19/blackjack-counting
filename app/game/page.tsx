@@ -49,9 +49,7 @@ function ActionButton({
         backgroundColor: highlighted
           ? `${color}35`
           : theme === "light" ? `${color}25` : "transparent",
-        border: highlighted
-          ? `2px solid ${color}`
-          : theme === "light" ? `2px solid ${darken(color)}` : `1.5px solid ${color}`,
+        border: `1.5px solid ${highlighted ? color : theme === "light" ? darken(color) : color}`,
         color: theme === "light" ? darken(color) : color,
         fontSize: "12px",
         fontWeight: 700,
