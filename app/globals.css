@@ -142,6 +142,11 @@ body {
   50% { box-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
 }
 
+@keyframes float-card {
+  0% { transform: inherit translateY(0px); }
+  100% { transform: inherit translateY(-20px); }
+}
+
 .btn-appear {
   animation: fade-in 0.3s ease forwards;
 }
