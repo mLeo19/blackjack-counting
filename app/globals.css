@@ -53,8 +53,8 @@
   --top-border: rgba(139, 101, 8, 0.2);
 }
 
-* {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+body, .felt-texture {
+  transition: background-color 0.3s ease;
 }
 
 body {
@@ -157,4 +157,16 @@ body {
 
 [data-theme="light"] .neon-pulse {
   animation: pulse-gold 2s ease-in-out infinite;
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

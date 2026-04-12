@@ -274,7 +274,7 @@ export default function BetControls({ bankroll, onDeal, maxBet = 500, minBet = 1
               background: canDeal
                 ? "linear-gradient(135deg, rgba(107,77,6,0.9), rgba(80,55,0,0.9))"
                 : "rgba(107,77,6,0.1)",
-              border: "2px solid rgba(107,77,6,0.8)",
+              border: "1.5px solid rgba(107,77,6,0.8)",
               color: canDeal ? "#fff8e6" : "rgba(107,77,6,0.3)",
               boxShadow: canDeal
                 ? "0 4px 16px rgba(107,77,6,0.3), inset 0 1px 0 rgba(255,255,255,0.15)"

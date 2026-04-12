@@ -6,6 +6,7 @@ import FlyingCard from "@/components/game/FlyingCard";
 import DebugPanel from "@/components/game/DebugPanel";
 import BetControls from "@/components/game/BetControls";
 import CountOverlay from "@/components/game/CountOverlay";
+import FloatingCards from "@/components/ui/FloatingCards";
 import { useGameController } from "@/hooks/useGameController";
 import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -13,41 +14,6 @@ import { useCountStore } from "@/store/countStore";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
-
-const SUITS = ["♠", "♥", "♦", "♣"];
-const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7"];
-
-interface FloatingCard {
-  id: number;
-  suit: string;
-  rank: string;
-  x: number;
-  y: number;
-  rotation: number;
-  scale: number;
-  duration: number;
-  delay: number;
-  isRed: boolean;
-}
-
-function generateCards(count: number): FloatingCard[] {
-  return Array.from({ length: count }, (_, i) => {
-    const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
-    const rank = RANKS[Math.floor(Math.random() * RANKS.length)];
-    return {
-      id: i,
-      suit,
-      rank,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      rotation: Math.random() * 60 - 30,
-      scale: 0.6 + Math.random() * 0.8,
-      duration: 4 + Math.random() * 4,
-      delay: Math.random() * 8,
-      isRed: suit === "♥" || suit === "♦",
-    };
-  });
-}
 
 function darken(hex: string): string {
   const map: Record<string, string> = {
@@ -150,8 +116,6 @@ export default function GamePage() {
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
   const { theme, toggleTheme } = useTheme();
   const { hintVisible, trainMode, toggleTrainMode } = useCountStore();
-
-  const [bgCards] = useState(() => generateCards(12));
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -194,63 +158,8 @@ export default function GamePage() {
       className="felt-texture flex flex-col min-h-screen overflow-hidden relative"
       style={{ color: "var(--text-primary)" }}
     >
-
-      {/* ── Floating background cards ── */}
-      {mounted && bgCards.map((card) => (
-        <div
-          key={card.id}
-          className="absolute pointer-events-none select-none"
-          style={{
-            left: `${card.x}%`,
-            top: `${card.y}%`,
-            zIndex: 0,
-            opacity: 0,
-            animation: `float-card-${card.id % 4} ${card.duration}s ease-in-out ${card.delay}s infinite alternate`,
-          }}
-        >
-          <div
-            style={{
-              width: "70px",
-              height: "100px",
-              borderRadius: "10px",
-              transform: `rotate(${card.rotation}deg) scale(${card.scale})`,
-              background: isDark
-                ? "linear-gradient(145deg, #fdfaf4, #f5ede0)"
-                : "linear-gradient(145deg, #1a2a1a, #0d1a0d)",
-              border: "1px solid rgba(180,160,120,0.3)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "4px",
-              boxShadow: isDark
-                ? "0 8px 32px rgba(0,0,0,0.4)"
-                : "0 8px 32px rgba(0,0,0,0.2)",
-            }}
-          >
-            <span style={{
-              fontSize: "24px",
-              fontFamily: "Georgia, serif",
-              fontWeight: 700,
-              color: card.isRed
-                ? isDark ? "#b91c1c" : "#ff4444"
-                : isDark ? "#1c1917" : "#e8f5e8",
-              lineHeight: 1,
-            }}>
-              {card.rank}
-            </span>
-            <span style={{
-              fontSize: "20px",
-              color: card.isRed
-                ? isDark ? "#b91c1c" : "#ff4444"
-                : isDark ? "#1c1917" : "#e8f5e8",
-              lineHeight: 1,
-            }}>
-              {card.suit}
-            </span>
-          </div>
-        </div>
-      ))}
+      {/* Floating background cards */}
+      <FloatingCards isDark={isDark} count={12} />
 
       {/* Flying cards overlay */}
       {flyingCards.map((fc) => (
@@ -266,90 +175,75 @@ export default function GamePage() {
         />
       ))}
 
-      {/* Top right controls */}
+      {/* Top right controls — no labels, just toggles */}
       <div
-        className="fixed top-4 right-4 z-50 flex items-end gap-5"
+        className="fixed top-4 right-3 z-50 flex items-center gap-3"
         style={{
           opacity: mounted ? 1 : 0,
           transition: "opacity 0.8s ease 0.1s",
         }}
       >
         {/* Train toggle */}
-        <div className="flex flex-col items-center gap-1">
-          <span
-            className="text-xs uppercase tracking-widest"
-            style={{
-              color: isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.7)",
-              fontFamily: "DM Mono, monospace",
-              fontSize: "10px",
-            }}
-          >
-            Train
-          </span>
-          <button
-            onClick={toggleTrainMode}
-            className="relative transition-all duration-300 hover:scale-105"
-            style={{
-              width: "44px",
-              height: "24px",
-              borderRadius: "999px",
-              backgroundColor: trainMode
-                ? isDark ? "#00f5ff" : "#8b6508"
-                : isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.2)",
-              border: "none",
-              cursor: "pointer",
-              boxShadow: trainMode && isDark ? "0 0 12px rgba(0,245,255,0.4)" : "none",
-              transition: "background-color 0.3s ease, box-shadow 0.3s ease",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: "3px",
-                left: trainMode ? "23px" : "3px",
-                width: "18px",
-                height: "18px",
-                borderRadius: "50%",
-                backgroundColor: "white",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                transition: "left 0.3s ease",
-              }}
-            />
-          </button>
-        </div>
+        <button
+          onClick={toggleTrainMode}
+          title="Train Mode"
+          style={{
+            width: "36px",
+            height: "20px",
+            borderRadius: "999px",
+            border: "none",
+            cursor: "pointer",
+            position: "relative",
+            backgroundColor: trainMode
+              ? isDark ? "#00f5ff" : "#8b6508"
+              : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+            boxShadow: trainMode && isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none",
+            transition: "background-color 0.3s ease, box-shadow 0.3s ease",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{
+            position: "absolute",
+            top: "2px",
+            left: trainMode ? "18px" : "2px",
+            width: "16px",
+            height: "16px",
+            borderRadius: "50%",
+            backgroundColor: "white",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+            transition: "left 0.3s ease",
+          }} />
+        </button>
 
         {/* Theme toggle */}
-        <div className="flex flex-col items-center gap-1">
-          <span
-            className="text-xs uppercase tracking-widest"
+        <div style={{
+          width: "24px",
+          height: "24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <button
+            onClick={toggleTheme}
+            title={isDark ? "Switch to Light" : "Switch to Dark"}
             style={{
-              color: isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.7)",
-              fontFamily: "DM Mono, monospace",
-              fontSize: "10px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "20px",
+              filter: theme === "light" ? "brightness(0)" : "none",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "20px",
+              height: "20px",
+              padding: 0,
             }}
           >
-            {isDark ? "Light" : "Dark"}
-          </span>
-          <div style={{ width: "44px", height: "26px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <button
-              onClick={toggleTheme}
-              className="transition-all hover:scale-110"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "26px",
-                filter: theme === "light" ? "brightness(0)" : "none",
-                lineHeight: 1,
-                display: "block",
-                width: "26px",
-                height: "26px",
-                textAlign: "center",
-              }}
-            >
-              {theme === "dark" ? "☀️" : "🌙"}
-            </button>
-          </div>
+            {isDark ? "☀️" : "🌙"}
+          </button>
         </div>
       </div>
 
@@ -367,15 +261,9 @@ export default function GamePage() {
         <div className="flex w-full max-w-2xl">
 
           {/* Left — Dealer */}
-          <div
-            className="flex flex-1 flex-col items-center justify-center gap-3 py-4 px-6"
-            style={{ borderRight: "1px solid var(--border)" }}
-          >
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4 px-6" style={{ borderRight: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2">
-              <span
-                className="text-xs uppercase tracking-widest"
-                style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}
-              >
+              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>
                 Dealer
               </span>
               {phase !== "idle" && phase !== "playerTurn" && phase !== "insurance" && (
@@ -390,33 +278,25 @@ export default function GamePage() {
           </div>
 
           {/* Right — Stats + Shoe */}
-          <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-56">
-
+          <div
+            className="flex flex-col items-center justify-center gap-3 py-4 w-56"
+            style={{ paddingLeft: "16px", paddingRight: "clamp(80px, 15vw, 120px)" }}
+          >
             <div className="flex flex-col items-center">
-              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                Bankroll
-              </span>
+              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Bankroll</span>
               <span className="text-xl font-bold neon-gold-text" style={{ fontFamily: "Playfair Display, serif" }}>
                 ${bankroll.toLocaleString()}
               </span>
             </div>
-
             <div className="flex flex-col items-center">
-              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                Decks Left
-              </span>
+              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Decks Left</span>
               <span className="text-lg font-semibold neon-text">{decksLeft}</span>
             </div>
-
             <div className="flex flex-col items-center gap-1 w-full overflow-hidden">
               <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Shoe — {shoe.length}/{totalCards}
               </span>
-              <div
-                ref={shoeRef}
-                className="relative"
-                style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}
-              >
+              <div ref={shoeRef} className="relative" style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}>
                 {Array.from({ length: totalSlots }).map((_, i) => {
                   const filled = i < filledSlots;
                   if (!filled) return null;
@@ -450,7 +330,6 @@ export default function GamePage() {
                 />
               </div>
             </div>
-
           </div>
         </div>
       </div>
@@ -465,7 +344,6 @@ export default function GamePage() {
           transition: "opacity 0.8s ease 0.1s, transform 0.8s ease 0.1s",
         }}
       >
-
         {/* Player hands */}
         <div className="w-full max-w-3xl">
           <div className="flex flex-wrap justify-center gap-6">
@@ -492,27 +370,19 @@ export default function GamePage() {
               >
                 <div className="flex items-center gap-2">
                   {playerHands.length > 1 && (
-                    <span
-                      className="text-xs uppercase tracking-widest"
-                      style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}
-                    >
+                    <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>
                       Hand {handIndex + 1}
                     </span>
                   )}
                   {hand.isSurrendered ? (
-                    <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>
-                      Surrendered
-                    </span>
+                    <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>Surrendered</span>
                   ) : (
                     <span style={handValueStyle}>
                       {playerHands.length > 1 ? `— ${getHandValue(hand.cards)}` : getHandValue(hand.cards)}
                     </span>
                   )}
                 </div>
-                <div
-                  ref={(el) => { playerHandRefs.current[handIndex] = el; }}
-                  className="flex gap-2 flex-wrap justify-center min-h-32"
-                >
+                <div ref={(el) => { playerHandRefs.current[handIndex] = el; }} className="flex gap-2 flex-wrap justify-center min-h-32">
                   {hand.cards.map((card, i) => (
                     <Card key={i} card={card} />
                   ))}
@@ -555,39 +425,14 @@ export default function GamePage() {
           {/* Insurance */}
           {phase === "insurance" && !isAnimating && (
             <div className="flex flex-col items-center gap-3">
-              <span
-                className="text-sm tracking-widest uppercase"
-                style={{
-                  color: "var(--insurance-color)",
-                  fontFamily: "DM Mono, monospace",
-                  textShadow: isDark ? "0 0 10px rgba(255,215,0,0.5)" : "none",
-                }}
-              >
+              <span className="text-sm tracking-widest uppercase" style={{ color: "var(--insurance-color)", fontFamily: "DM Mono, monospace", textShadow: isDark ? "0 0 10px rgba(255,215,0,0.5)" : "none" }}>
                 Dealer shows Ace — Insurance?
               </span>
               <div className="flex gap-4">
-                <button
-                  onClick={takeInsurance}
-                  className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105"
-                  style={{
-                    backgroundColor: "var(--insurance-color)",
-                    color: "#1a1100",
-                    fontFamily: "DM Mono, monospace",
-                    boxShadow: isDark ? "0 0 12px rgba(255,215,0,0.4)" : "none",
-                  }}
-                >
+                <button onClick={takeInsurance} className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105" style={{ backgroundColor: "var(--insurance-color)", color: "#1a1100", fontFamily: "DM Mono, monospace", boxShadow: isDark ? "0 0 12px rgba(255,215,0,0.4)" : "none" }}>
                   Take Insurance
                 </button>
-                <button
-                  onClick={declineInsurance}
-                  className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105"
-                  style={{
-                    backgroundColor: "var(--clear-btn-bg)",
-                    border: "1px solid var(--clear-btn-border)",
-                    color: "var(--clear-btn-color)",
-                    fontFamily: "DM Mono, monospace",
-                  }}
-                >
+                <button onClick={declineInsurance} className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105" style={{ backgroundColor: "var(--clear-btn-bg)", border: "1px solid var(--clear-btn-border)", color: "var(--clear-btn-color)", fontFamily: "DM Mono, monospace" }}>
                   Decline
                 </button>
               </div>
@@ -597,31 +442,17 @@ export default function GamePage() {
           {/* Action buttons */}
           {phase === "playerTurn" && activeHand && !isAnimating && (
             <div className="flex gap-3 flex-wrap justify-center">
-              <ActionButton theme={theme} color="#00f5ff" label="Hit" onClick={hit}
-                highlighted={recommendedAction === "hit"} />
-              <ActionButton theme={theme} color="#ff2d78" label="Stand" onClick={stand}
-                highlighted={recommendedAction === "stand"} />
-              {showDouble && (
-                <ActionButton theme={theme} color="#ffd700" label="Double" onClick={doubleDown}
-                  highlighted={recommendedAction === "double"} />
-              )}
-              {showSplit && (
-                <ActionButton theme={theme} color="#a855f7" label="Split" onClick={split}
-                  highlighted={recommendedAction === "split"} />
-              )}
-              {showSurrender && (
-                <ActionButton theme={theme} color="#ff6b35" label="Surrender" onClick={surrender}
-                  highlighted={recommendedAction === "surrender"} />
-              )}
+              <ActionButton theme={theme} color="#00f5ff" label="Hit" onClick={hit} highlighted={recommendedAction === "hit"} />
+              <ActionButton theme={theme} color="#ff2d78" label="Stand" onClick={stand} highlighted={recommendedAction === "stand"} />
+              {showDouble && <ActionButton theme={theme} color="#ffd700" label="Double" onClick={doubleDown} highlighted={recommendedAction === "double"} />}
+              {showSplit && <ActionButton theme={theme} color="#a855f7" label="Split" onClick={split} highlighted={recommendedAction === "split"} />}
+              {showSurrender && <ActionButton theme={theme} color="#ff6b35" label="Surrender" onClick={surrender} highlighted={recommendedAction === "surrender"} />}
             </div>
           )}
 
           {/* Bet controls */}
           {phase === "idle" && !isAnimating && (
-            <BetControls
-              bankroll={bankroll}
-              onDeal={(bet) => deal(bet)}
-            />
+            <BetControls bankroll={bankroll} onDeal={(bet) => deal(bet)} />
           )}
 
           {/* Next Round */}
@@ -645,7 +476,7 @@ export default function GamePage() {
                   textShadow: "0 0 10px rgba(0,245,255,0.7)",
                 } : {
                   background: "linear-gradient(135deg, rgba(107,77,6,0.12), rgba(107,77,6,0.06))",
-                  border: "2px solid rgba(107,77,6,0.7)",
+                  border: "1.5px solid rgba(107,77,6,0.7)",
                   color: "#4a3500",
                   boxShadow: "0 4px 16px rgba(107,77,6,0.2)",
                   textShadow: "none",
@@ -679,7 +510,6 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* Count overlay */}
       <CountOverlay
         phase={phase}
         playerHand={activeHand ?? null}
@@ -688,32 +518,7 @@ export default function GamePage() {
 
       <DebugPanel onScenario={debugDeal} onForceReshuffle={forceReshuffle} />
 
-      {/* ── Keyframes ── */}
       <style>{`
-        @keyframes float-card-0 {
-          0%   { transform: translateY(0px); opacity: 0; }
-          15%  { opacity: 0.07; }
-          85%  { opacity: 0.07; }
-          100% { transform: translateY(-18px); opacity: 0; }
-        }
-        @keyframes float-card-1 {
-          0%   { transform: translateY(0px); opacity: 0; }
-          15%  { opacity: 0.06; }
-          85%  { opacity: 0.06; }
-          100% { transform: translateY(-24px); opacity: 0; }
-        }
-        @keyframes float-card-2 {
-          0%   { transform: translateY(0px); opacity: 0; }
-          15%  { opacity: 0.08; }
-          85%  { opacity: 0.08; }
-          100% { transform: translateY(-14px); opacity: 0; }
-        }
-        @keyframes float-card-3 {
-          0%   { transform: translateY(0px); opacity: 0; }
-          15%  { opacity: 0.05; }
-          85%  { opacity: 0.05; }
-          100% { transform: translateY(-20px); opacity: 0; }
-        }
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
