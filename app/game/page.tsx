@@ -13,8 +13,8 @@ import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCountStore } from "@/store/countStore";
 import { useProfile } from "@/hooks/useProfile";
-import { saveBankroll } from "@/lib/supabase/profile";
-import { Profile } from "@/lib/supabase/profile";
+import { saveBankroll, Profile, getOpenSession } from "@/lib/supabase/profile";
+import { createClient } from "@/lib/supabase/client";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
@@ -93,6 +93,157 @@ function ActionButton({
     >
       {label}
     </button>
+  );
+}
+
+function MenuButton({
+  label,
+  isDark,
+  onClick,
+  icon,
+  danger,
+}: {
+  label: string;
+  isDark: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  danger?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const color = danger ? "#ff2d78" : isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)";
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: "100%",
+        padding: "10px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        background: hovered ? isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" : "transparent",
+        border: "none",
+        cursor: "pointer",
+        color,
+        fontFamily: "DM Mono, monospace",
+        fontSize: "12px",
+        fontWeight: 600,
+        letterSpacing: "0.05em",
+        textAlign: "left",
+        transition: "background 0.15s ease",
+        textShadow: danger && hovered && isDark ? "0 0 8px rgba(255,45,120,0.5)" : "none",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function AvatarMenu({
+  profile,
+  bankroll,
+  isDark,
+  onDashboard,
+}: {
+  profile: Profile;
+  bankroll: number;
+  isDark: boolean;
+  onDashboard: () => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  const handleLogout = async () => {
+    sessionStorage.removeItem("gameActive");
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
+  return (
+    <div className="fixed bottom-6 right-6 z-40">
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute bottom-14 right-0 z-40 rounded-2xl overflow-hidden"
+            style={{
+              minWidth: "200px",
+              backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.9)",
+              border: `1px solid ${isDark ? "rgba(0,245,255,0.15)" : "rgba(107,77,6,0.15)"}`,
+              backdropFilter: "blur(16px)",
+              boxShadow: isDark ? "0 0 40px rgba(0,0,0,0.6), 0 0 20px rgba(0,245,255,0.05)" : "0 20px 60px rgba(0,0,0,0.12)",
+              animation: "menu-appear 0.15s ease forwards",
+            }}
+          >
+            <div className="px-4 py-3 flex flex-col gap-0.5" style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+              <span style={{ fontFamily: "Playfair Display, serif", fontSize: "15px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>
+                {profile.username}
+              </span>
+              <span style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "#ffd700" : "#8b6508", textShadow: isDark ? "0 0 8px rgba(255,215,0,0.3)" : "none" }}>
+                ${bankroll.toLocaleString()}
+              </span>
+            </div>
+            <div className="py-1">
+              <MenuButton
+                label="Dashboard"
+                isDark={isDark}
+                onClick={() => { setOpen(false); onDashboard(); }}
+                icon={
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                  </svg>
+                }
+              />
+              <MenuButton
+                label="Log Out"
+                isDark={isDark}
+                onClick={handleLogout}
+                danger
+                icon={
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                }
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="transition-all duration-200 hover:scale-110"
+        style={{
+          width: "44px",
+          height: "44px",
+          borderRadius: "50%",
+          border: `1.5px solid ${open ? isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)" : isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
+          backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
+          backdropFilter: "blur(8px)",
+          boxShadow: open ? isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)" : isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          zIndex: 40,
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -188,44 +339,14 @@ function GameContent({
           flexShrink: 0,
         }}
       >
-        <div style={{
-          position: "absolute",
-          top: "2px",
-          left: trainMode ? "18px" : "2px",
-          width: "16px",
-          height: "16px",
-          borderRadius: "50%",
-          backgroundColor: "white",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-          transition: "left 0.3s ease",
-        }} />
+        <div style={{ position: "absolute", top: "2px", left: trainMode ? "18px" : "2px", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.3)", transition: "left 0.3s ease" }} />
       </button>
 
-      <div style={{
-        width: "24px",
-        height: "24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}>
+      <div style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <button
           onClick={toggleTheme}
           title={isDark ? "Switch to Light" : "Switch to Dark"}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "20px",
-            filter: theme === "light" ? "brightness(0)" : "none",
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "20px",
-            height: "20px",
-            padding: 0,
-          }}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", filter: theme === "light" ? "brightness(0)" : "none", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", width: "20px", height: "20px", padding: 0 }}
         >
           {isDark ? "☀️" : "🌙"}
         </button>
@@ -234,80 +355,43 @@ function GameContent({
   );
 
   return (
-    <div
-      className="felt-texture flex flex-col min-h-screen overflow-hidden relative"
-      style={{ color: "var(--text-primary)" }}
-    >
+    <div className="felt-texture flex flex-col min-h-screen overflow-hidden relative" style={{ color: "var(--text-primary)" }}>
       <FloatingCards isDark={isDark} count={12} />
 
       {flyingCards.map((fc) => (
-        <FlyingCard
-          key={fc.id}
-          id={fc.id}
-          from={fc.from}
-          to={fc.to}
-          faceDown={fc.faceDown}
-          rank={fc.rank}
-          suit={fc.suit}
-          onComplete={onFlyingCardComplete}
-        />
+        <FlyingCard key={fc.id} id={fc.id} from={fc.from} to={fc.to} faceDown={fc.faceDown} rank={fc.rank} suit={fc.suit} onComplete={onFlyingCardComplete} />
       ))}
 
       {/* Fixed toggles — large screens only */}
-      <div
-        className="large-toggles fixed top-4 right-3 z-50 items-center gap-3"
-        style={{
-          opacity: mounted ? 1 : 0,
-          transition: "opacity 0.8s ease 0.1s",
-        }}
-      >
+      <div className="large-toggles fixed top-4 right-3 z-50 items-center gap-3" style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
         {togglesJSX}
       </div>
 
       {/* ── Top bar ── */}
-      <div
-        className="flex justify-center relative"
-        style={{
-          borderBottom: "1px solid var(--border)",
-          zIndex: 10,
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(-10px)",
-          transition: "opacity 0.8s ease, transform 0.8s ease",
-        }}
-      >
+      <div className="flex justify-center relative" style={{ borderBottom: "1px solid var(--border)", zIndex: 10, opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(-10px)", transition: "opacity 0.8s ease, transform 0.8s ease" }}>
         <div className="flex w-full max-w-2xl">
 
           {/* Left — Dealer */}
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4 px-6" style={{ borderRight: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>
-                Dealer
-              </span>
+              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>Dealer</span>
               {phase !== "idle" && phase !== "playerTurn" && phase !== "insurance" && (
                 <span style={handValueStyle}>— {getHandValue(dealerHand.cards)}</span>
               )}
             </div>
             <div ref={dealerHandRef} className="flex gap-3 flex-wrap justify-center min-h-32">
-              {dealerHand.cards.map((card, i) => (
-                <Card key={i} card={card} />
-              ))}
+              {dealerHand.cards.map((card, i) => <Card key={i} card={card} />)}
             </div>
           </div>
 
           {/* Right — Stats + Shoe */}
           <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-56">
-
-            {/* Bankroll row — inline toggles on small screens */}
             <div className="flex items-center justify-center gap-2">
               <div className="flex flex-col items-center">
                 <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Bankroll</span>
-                <span className="text-xl font-bold neon-gold-text" style={{ fontFamily: "Playfair Display, serif" }}>
-                  ${bankroll.toLocaleString()}
-                </span>
+                <span className="text-xl font-bold neon-gold-text" style={{ fontFamily: "Playfair Display, serif" }}>${bankroll.toLocaleString()}</span>
               </div>
-              <div className="small-toggles items-center gap-2">
-                {togglesJSX}
-              </div>
+              <div className="small-toggles items-center gap-2">{togglesJSX}</div>
             </div>
 
             <div className="flex flex-col items-center">
@@ -316,45 +400,15 @@ function GameContent({
             </div>
 
             <div className="flex flex-col items-center gap-1 w-full overflow-hidden">
-              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                Shoe — {shoe.length}/{totalCards}
-              </span>
-              <div
-                ref={shoeRef}
-                className="relative"
-                style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}
-              >
+              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Shoe — {shoe.length}/{totalCards}</span>
+              <div ref={shoeRef} className="relative" style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}>
                 {Array.from({ length: totalSlots }).map((_, i) => {
-                  const filled = i < filledSlots;
-                  if (!filled) return null;
+                  if (i >= filledSlots) return null;
                   const lightness = theme === "light" ? 55 + i * 0.6 : 20 + i * 0.6;
                   const hue = theme === "light" ? 40 : 160;
-                  return (
-                    <div
-                      key={i}
-                      className="absolute rounded-sm transition-all duration-300"
-                      style={{
-                        width: `${cardWidth}px`,
-                        height: `${cardHeight}px`,
-                        left: `${i * overlap}px`,
-                        top: 0,
-                        zIndex: i,
-                        backgroundColor: `hsl(${hue}, 55%, ${lightness}%)`,
-                        border: "1px solid var(--shoe-border)",
-                        boxShadow: isDark ? "inset 0 0 4px rgba(0,245,255,0.1)" : "none",
-                      }}
-                    />
-                  );
+                  return <div key={i} className="absolute rounded-sm transition-all duration-300" style={{ width: `${cardWidth}px`, height: `${cardHeight}px`, left: `${i * overlap}px`, top: 0, zIndex: i, backgroundColor: `hsl(${hue}, 55%, ${lightness}%)`, border: "1px solid var(--shoe-border)", boxShadow: isDark ? "inset 0 0 4px rgba(0,245,255,0.1)" : "none" }} />;
                 })}
-                <div
-                  className="absolute top-0 w-px"
-                  style={{
-                    left: `${(totalSlots - 1) * overlap + cardWidth}px`,
-                    height: `${cardHeight}px`,
-                    backgroundColor: "var(--shoe-marker)",
-                    boxShadow: isDark ? "0 0 4px rgba(0,245,255,0.4)" : "none",
-                  }}
-                />
+                <div className="absolute top-0 w-px" style={{ left: `${(totalSlots - 1) * overlap + cardWidth}px`, height: `${cardHeight}px`, backgroundColor: "var(--shoe-marker)", boxShadow: isDark ? "0 0 4px rgba(0,245,255,0.4)" : "none" }} />
               </div>
             </div>
           </div>
@@ -362,77 +416,36 @@ function GameContent({
       </div>
 
       {/* ── Main table ── */}
-      <div
-        className="flex flex-1 flex-col items-center justify-between py-8 px-4 gap-6 relative"
-        style={{
-          zIndex: 10,
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(10px)",
-          transition: "opacity 0.8s ease 0.1s, transform 0.8s ease 0.1s",
-        }}
-      >
+      <div className="flex flex-1 flex-col items-center justify-between py-8 px-4 gap-6 relative" style={{ zIndex: 10, opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(10px)", transition: "opacity 0.8s ease 0.1s, transform 0.8s ease 0.1s" }}>
+
         {/* Player hands */}
         <div className="w-full max-w-3xl">
           <div className="flex flex-wrap justify-center gap-6">
             {playerHands.map((hand, handIndex) => (
               <div
                 key={handIndex}
-                className={`
-                  flex flex-col items-center gap-2 p-3 rounded-2xl transition-all
-                  ${handIndex === activeHandIndex && phase === "playerTurn" ? "neon-pulse" : ""}
-                  ${playerHands.length === 3
-                    ? handIndex < 2 ? "basis-[45%]" : "basis-full"
-                    : playerHands.length === 4
-                    ? "basis-[45%] sm:basis-auto"
-                    : ""}
-                `}
+                className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${handIndex === activeHandIndex && phase === "playerTurn" ? "neon-pulse" : ""} ${playerHands.length === 3 ? handIndex < 2 ? "basis-[45%]" : "basis-full" : playerHands.length === 4 ? "basis-[45%] sm:basis-auto" : ""}`}
                 style={{
-                  border: handIndex === activeHandIndex && phase === "playerTurn"
-                    ? "1px solid var(--active-hand-border)"
-                    : "1px solid transparent",
-                  backgroundColor: handIndex === activeHandIndex && phase === "playerTurn"
-                    ? "var(--active-hand-bg)"
-                    : "transparent",
+                  border: handIndex === activeHandIndex && phase === "playerTurn" ? "1px solid var(--active-hand-border)" : "1px solid transparent",
+                  backgroundColor: handIndex === activeHandIndex && phase === "playerTurn" ? "var(--active-hand-bg)" : "transparent",
                 }}
               >
                 <div className="flex items-center gap-2">
-                  {playerHands.length > 1 && (
-                    <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>
-                      Hand {handIndex + 1}
-                    </span>
-                  )}
-                  {hand.isSurrendered ? (
-                    <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>Surrendered</span>
-                  ) : (
-                    <span style={handValueStyle}>
-                      {playerHands.length > 1 ? `— ${getHandValue(hand.cards)}` : getHandValue(hand.cards)}
-                    </span>
-                  )}
+                  {playerHands.length > 1 && <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>Hand {handIndex + 1}</span>}
+                  {hand.isSurrendered
+                    ? <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>Surrendered</span>
+                    : <span style={handValueStyle}>{playerHands.length > 1 ? `— ${getHandValue(hand.cards)}` : getHandValue(hand.cards)}</span>
+                  }
                 </div>
                 <div ref={(el) => { playerHandRefs.current[handIndex] = el; }} className="flex gap-2 flex-wrap justify-center min-h-32">
-                  {hand.cards.map((card, i) => (
-                    <Card key={i} card={card} />
-                  ))}
+                  {hand.cards.map((card, i) => <Card key={i} card={card} />)}
                 </div>
                 {results[handIndex] && (
-                  <span
-                    className="text-base font-bold tracking-wide"
-                    style={{
-                      fontFamily: "Playfair Display, serif",
-                      color: results[handIndex] === "win" || results[handIndex] === "blackjack"
-                        ? "var(--text-result-win)"
-                        : results[handIndex] === "push" || results[handIndex] === "surrender"
-                        ? "var(--text-result-push)"
-                        : "var(--text-result-lose)",
-                      textShadow: isDark
-                        ? results[handIndex] === "win" || results[handIndex] === "blackjack"
-                          ? "0 0 12px rgba(0,245,255,0.6)"
-                          : results[handIndex] === "push" || results[handIndex] === "surrender"
-                          ? "0 0 12px rgba(255,215,0,0.6)"
-                          : "0 0 12px rgba(255,45,120,0.6)"
-                        : "none",
-                    }}
-                  >
+                  <span className="text-base font-bold tracking-wide" style={{
+                    fontFamily: "Playfair Display, serif",
+                    color: results[handIndex] === "win" || results[handIndex] === "blackjack" ? "var(--text-result-win)" : results[handIndex] === "push" || results[handIndex] === "surrender" ? "var(--text-result-push)" : "var(--text-result-lose)",
+                    textShadow: isDark ? results[handIndex] === "win" || results[handIndex] === "blackjack" ? "0 0 12px rgba(0,245,255,0.6)" : results[handIndex] === "push" || results[handIndex] === "surrender" ? "0 0 12px rgba(255,215,0,0.6)" : "0 0 12px rgba(255,45,120,0.6)" : "none",
+                  }}>
                     {results[handIndex] === "blackjack" && "✦ Blackjack"}
                     {results[handIndex] === "win" && "✦ Win"}
                     {results[handIndex] === "lose" && "✦ Lose"}
@@ -455,12 +468,8 @@ function GameContent({
                 Dealer shows Ace — Insurance?
               </span>
               <div className="flex gap-4">
-                <button onClick={takeInsurance} className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105" style={{ backgroundColor: "var(--insurance-color)", color: "#1a1100", fontFamily: "DM Mono, monospace", boxShadow: isDark ? "0 0 12px rgba(255,215,0,0.4)" : "none" }}>
-                  Take Insurance
-                </button>
-                <button onClick={declineInsurance} className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105" style={{ backgroundColor: "var(--clear-btn-bg)", border: "1px solid var(--clear-btn-border)", color: "var(--clear-btn-color)", fontFamily: "DM Mono, monospace" }}>
-                  Decline
-                </button>
+                <button onClick={takeInsurance} className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105" style={{ backgroundColor: "var(--insurance-color)", color: "#1a1100", fontFamily: "DM Mono, monospace", boxShadow: isDark ? "0 0 12px rgba(255,215,0,0.4)" : "none" }}>Take Insurance</button>
+                <button onClick={declineInsurance} className="px-6 py-2.5 font-bold rounded-xl transition-all hover:scale-105" style={{ backgroundColor: "var(--clear-btn-bg)", border: "1px solid var(--clear-btn-border)", color: "var(--clear-btn-color)", fontFamily: "DM Mono, monospace" }}>Decline</button>
               </div>
             </div>
           )}
@@ -507,23 +516,13 @@ function GameContent({
               }}
               onMouseEnter={(e) => {
                 const btn = e.currentTarget;
-                if (isDark) {
-                  btn.style.background = "linear-gradient(135deg, rgba(0,245,255,0.25), rgba(0,245,255,0.1))";
-                  btn.style.boxShadow = "0 0 40px rgba(0,245,255,0.35), inset 0 0 30px rgba(0,245,255,0.1)";
-                } else {
-                  btn.style.background = "linear-gradient(135deg, rgba(107,77,6,0.22), rgba(107,77,6,0.12))";
-                  btn.style.boxShadow = "0 6px 24px rgba(107,77,6,0.35)";
-                }
+                if (isDark) { btn.style.background = "linear-gradient(135deg, rgba(0,245,255,0.25), rgba(0,245,255,0.1))"; btn.style.boxShadow = "0 0 40px rgba(0,245,255,0.35), inset 0 0 30px rgba(0,245,255,0.1)"; }
+                else { btn.style.background = "linear-gradient(135deg, rgba(107,77,6,0.22), rgba(107,77,6,0.12))"; btn.style.boxShadow = "0 6px 24px rgba(107,77,6,0.35)"; }
               }}
               onMouseLeave={(e) => {
                 const btn = e.currentTarget;
-                if (isDark) {
-                  btn.style.background = "linear-gradient(135deg, rgba(0,245,255,0.15), rgba(0,245,255,0.05))";
-                  btn.style.boxShadow = "0 0 24px rgba(0,245,255,0.2), inset 0 0 24px rgba(0,245,255,0.05)";
-                } else {
-                  btn.style.background = "linear-gradient(135deg, rgba(107,77,6,0.12), rgba(107,77,6,0.06))";
-                  btn.style.boxShadow = "0 4px 16px rgba(107,77,6,0.2)";
-                }
+                if (isDark) { btn.style.background = "linear-gradient(135deg, rgba(0,245,255,0.15), rgba(0,245,255,0.05))"; btn.style.boxShadow = "0 0 24px rgba(0,245,255,0.2), inset 0 0 24px rgba(0,245,255,0.05)"; }
+                else { btn.style.background = "linear-gradient(135deg, rgba(107,77,6,0.12), rgba(107,77,6,0.06))"; btn.style.boxShadow = "0 4px 16px rgba(107,77,6,0.2)"; }
               }}
             >
               ✦ Next Round ✦
@@ -533,61 +532,27 @@ function GameContent({
         </div>
       </div>
 
-      <CountOverlay
-        phase={phase}
-        playerHand={activeHand ?? null}
-        dealerUpCard={dealerHand.cards[0]?.rank ?? null}
-      />
+      <CountOverlay phase={phase} playerHand={activeHand ?? null} dealerUpCard={dealerHand.cards[0]?.rank ?? null} />
 
       {profile && (
-        <button
-          onClick={() => router.push("/dashboard")}
-          title={profile.username}
-          className="fixed bottom-6 right-6 z-40 transition-all duration-200 hover:scale-110"
-          style={{
-            width: "44px",
-            height: "44px",
-            borderRadius: "50%",
-            border: `1.5px solid ${isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
-            backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
-            backdropFilter: "blur(8px)",
-            boxShadow: isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)";
-            e.currentTarget.style.borderColor = isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)";
-            e.currentTarget.style.borderColor = isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)";
-          }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-          </svg>
-        </button>
+        <AvatarMenu profile={profile} bankroll={bankroll} isDark={isDark} onDashboard={() => router.push("/dashboard")} />
       )}
 
       <style>{`
         .large-toggles { display: flex; }
         .small-toggles { display: none; }
-
         @media (max-width: 640px) {
           .large-toggles { display: none !important; }
           .small-toggles { display: flex !important; }
         }
-
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .btn-appear {
-          animation: fade-in 0.3s ease forwards;
+        .btn-appear { animation: fade-in 0.3s ease forwards; }
+        @keyframes menu-appear {
+          from { opacity: 0; transform: translateY(8px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
     </div>
@@ -598,37 +563,59 @@ export default function GamePage() {
   const { profile, loading } = useProfile();
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const [gameReady, setGameReady] = useState(false);
+
+  const [gameReady, setGameReady] = useState(() =>
+    typeof window !== "undefined" && sessionStorage.getItem("gameActive") === "true"
+  );
   const [gameBankroll, setGameBankroll] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (gameReady && profile && gameBankroll === null) {
+      getOpenSession().then((session) => {
+        if (session) {
+          setGameBankroll(profile.bankroll);
+          setSessionId(session.id);
+        } else {
+          setGameReady(false);
+        }
+      });
+    }
+  }, [gameReady, profile, gameBankroll]);
 
   if (loading) {
     return (
       <div className="felt-texture min-h-screen flex items-center justify-center">
-        <span style={{
-          fontFamily: "DM Mono, monospace",
-          fontSize: "12px",
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-          color: isDark ? "rgba(0,245,255,0.5)" : "rgba(107,77,6,0.5)",
-        }}>
+        <span style={{ fontFamily: "DM Mono, monospace", fontSize: "12px", letterSpacing: "0.15em", textTransform: "uppercase", color: isDark ? "rgba(0,245,255,0.5)" : "rgba(107,77,6,0.5)" }}>
           Loading...
         </span>
       </div>
     );
   }
 
-  // guest — go straight to game with default bankroll
+  // guest
   if (!profile) {
     return <GameContent profile={null} bankroll={1000} sessionId={null} />;
   }
 
-  // logged in — show session gate first
+  // logged in — waiting for session data after refresh
+  if (gameReady && (gameBankroll === null || sessionId === null)) {
+    return (
+      <div className="felt-texture min-h-screen flex items-center justify-center">
+        <span style={{ fontFamily: "DM Mono, monospace", fontSize: "12px", letterSpacing: "0.15em", textTransform: "uppercase", color: isDark ? "rgba(0,245,255,0.5)" : "rgba(107,77,6,0.5)" }}>
+          Loading...
+        </span>
+      </div>
+    );
+  }
+
+  // logged in — show session gate
   if (!gameReady || gameBankroll === null || sessionId === null) {
     return (
       <SessionGate
         profile={profile}
         onReady={(bankroll, sid) => {
+          sessionStorage.setItem("gameActive", "true");
           setGameBankroll(bankroll);
           setSessionId(sid);
           setGameReady(true);

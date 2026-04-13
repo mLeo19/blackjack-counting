@@ -28,13 +28,17 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
 
   useEffect(() => {
     getOpenSession().then((session) => {
-      if (session && session.hands_played === 0) {
-        // brand new session — skip the gate and go straight to game
-        onReady(profile.bankroll, session.id);
-      } else {
-        setOpenSession(session);
-        setLoading(false);
+      if (session) {
+        const sessionAge = Date.now() - new Date(session.started_at).getTime();
+        const isJustCreated = sessionAge < 60000; // less than 60 seconds old
+        if (isJustCreated) {
+          // brand new session from signup — skip gate
+          onReady(profile.bankroll, session.id);
+          return;
+        }
       }
+      setOpenSession(session);
+      setLoading(false);
     });
   }, []);
 
