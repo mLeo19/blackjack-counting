@@ -382,6 +382,20 @@ export function useGameController(initialBankroll?: number) {
     }));
   }, []);
 
+  const newShoe = useCallback(() => {
+    const freshState = createInitialState();
+    resolvedGame.current = {
+      ...resolvedGame.current,
+      shoe: freshState.shoe,
+    };
+    setVisibleGame((prev) => ({
+      ...prev,
+      shoe: freshState.shoe,
+    }));
+    resetCount();
+    clearHistory();
+  }, [resetCount, clearHistory]);
+
   return {
     game: { ...visibleGame, bankroll: visibleBankroll },
     isAnimating,
@@ -398,5 +412,6 @@ export function useGameController(initialBankroll?: number) {
     newRound,
     debugDeal,
     forceReshuffle,
+    newShoe,
   };
 }

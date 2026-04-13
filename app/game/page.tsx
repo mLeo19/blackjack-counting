@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/game/Card";
 import FlyingCard from "@/components/game/FlyingCard";
@@ -28,6 +28,35 @@ function darken(hex: string): string {
     "#ff6b35": "#8a2d00",
   };
   return map[hex] ?? hex;
+}
+
+function Toast({ message, isDark }: { message: string; isDark: boolean }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: "20px",
+        right: "16px",
+        zIndex: 100,
+        padding: "10px 20px",
+        borderRadius: "999px",
+        backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.9)",
+        border: `1px solid ${isDark ? "rgba(0,245,255,0.3)" : "rgba(107,77,6,0.3)"}`,
+        backdropFilter: "blur(12px)",
+        boxShadow: isDark ? "0 0 24px rgba(0,245,255,0.15)" : "0 8px 32px rgba(0,0,0,0.1)",
+        fontFamily: "DM Mono, monospace",
+        fontSize: "11px",
+        fontWeight: 700,
+        letterSpacing: "0.12em",
+        color: isDark ? "#00f5ff" : "#4a3500",
+        textShadow: isDark ? "0 0 10px rgba(0,245,255,0.6)" : "none",
+        animation: "toast-appear 2.5s ease forwards",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {message}
+    </div>
+  );
 }
 
 function ActionButton({
@@ -102,12 +131,14 @@ function MenuButton({
   onClick,
   icon,
   danger,
+  disabled,
 }: {
   label: string;
   isDark: boolean;
   onClick: () => void;
   icon?: React.ReactNode;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const color = danger ? "#ff2d78" : isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)";
@@ -115,6 +146,7 @@ function MenuButton({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -123,17 +155,18 @@ function MenuButton({
         display: "flex",
         alignItems: "center",
         gap: "10px",
-        background: hovered ? isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" : "transparent",
+        background: hovered && !disabled ? isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" : "transparent",
         border: "none",
-        cursor: "pointer",
-        color,
+        cursor: disabled ? "not-allowed" : "pointer",
+        color: disabled ? isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)" : color,
         fontFamily: "DM Mono, monospace",
         fontSize: "12px",
         fontWeight: 600,
         letterSpacing: "0.05em",
         textAlign: "left",
         transition: "background 0.15s ease",
-        textShadow: danger && hovered && isDark ? "0 0 8px rgba(255,45,120,0.5)" : "none",
+        textShadow: danger && hovered && isDark && !disabled ? "0 0 8px rgba(255,45,120,0.5)" : "none",
+        opacity: disabled ? 0.35 : 1,
       }}
     >
       {icon}
@@ -147,11 +180,15 @@ function AvatarMenu({
   bankroll,
   isDark,
   onDashboard,
+  onNewShoe,
+  showNewShoe,
 }: {
   profile: Profile;
   bankroll: number;
   isDark: boolean;
   onDashboard: () => void;
+  onNewShoe: () => void;
+  showNewShoe: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -175,67 +212,51 @@ function AvatarMenu({
               backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.9)",
               border: `1px solid ${isDark ? "rgba(0,245,255,0.15)" : "rgba(107,77,6,0.15)"}`,
               backdropFilter: "blur(16px)",
-              boxShadow: isDark ? "0 0 40px rgba(0,0,0,0.6), 0 0 20px rgba(0,245,255,0.05)" : "0 20px 60px rgba(0,0,0,0.12)",
+              boxShadow: isDark ? "0 0 40px rgba(0,0,0,0.6)" : "0 20px 60px rgba(0,0,0,0.12)",
               animation: "menu-appear 0.15s ease forwards",
             }}
           >
             <div className="px-4 py-3 flex flex-col gap-0.5" style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
-              <span style={{ fontFamily: "Playfair Display, serif", fontSize: "15px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>
-                {profile.username}
-              </span>
-              <span style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "#ffd700" : "#8b6508", textShadow: isDark ? "0 0 8px rgba(255,215,0,0.3)" : "none" }}>
-                ${bankroll.toLocaleString()}
-              </span>
+              <span style={{ fontFamily: "Playfair Display, serif", fontSize: "15px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>{profile.username}</span>
+              <span style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "#ffd700" : "#8b6508", textShadow: isDark ? "0 0 8px rgba(255,215,0,0.3)" : "none" }}>${bankroll.toLocaleString()}</span>
             </div>
             <div className="py-1">
               <MenuButton
                 label="Dashboard"
                 isDark={isDark}
                 onClick={() => { setOpen(false); onDashboard(); }}
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                  </svg>
-                }
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>}
               />
+              {showNewShoe && (
+                <MenuButton
+                  label="New Shoe"
+                  isDark={isDark}
+                  onClick={() => { setOpen(false); onNewShoe(); }}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>}
+                />
+              )}
+              <div style={{ height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />
               <MenuButton
                 label="Log Out"
                 isDark={isDark}
                 onClick={handleLogout}
                 danger
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                }
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>}
               />
             </div>
           </div>
         </>
       )}
-
       <button
         onClick={() => setOpen((prev) => !prev)}
         className="transition-all duration-200 hover:scale-110"
         style={{
-          width: "44px",
-          height: "44px",
-          borderRadius: "50%",
+          width: "44px", height: "44px", borderRadius: "50%",
           border: `1.5px solid ${open ? isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)" : isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
           backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
           backdropFilter: "blur(8px)",
           boxShadow: open ? isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)" : isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          zIndex: 40,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 40,
         }}
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -247,7 +268,15 @@ function AvatarMenu({
   );
 }
 
-function GuestMenu({ isDark }: { isDark: boolean }) {
+function GuestMenu({
+  isDark,
+  onNewShoe,
+  showNewShoe,
+}: {
+  isDark: boolean;
+  onNewShoe: () => void;
+  showNewShoe: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -272,68 +301,44 @@ function GuestMenu({ isDark }: { isDark: boolean }) {
                 label="Log In"
                 isDark={isDark}
                 onClick={() => router.push("/login")}
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                    <polyline points="10 17 15 12 10 7" />
-                    <line x1="15" y1="12" x2="3" y2="12" />
-                  </svg>
-                }
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>}
               />
               <MenuButton
                 label="Sign Up"
                 isDark={isDark}
                 onClick={() => router.push("/signup")}
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <line x1="19" y1="8" x2="19" y2="14" />
-                    <line x1="22" y1="11" x2="16" y2="11" />
-                  </svg>
-                }
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>}
               />
+              {showNewShoe && (
+                <MenuButton
+                  label="New Shoe"
+                  isDark={isDark}
+                  onClick={() => { setOpen(false); onNewShoe(); }}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>}
+                />
+              )}
               <div style={{ height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />
               <MenuButton
                 label="Exit Game"
                 isDark={isDark}
                 onClick={() => router.push("/")}
                 danger
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                }
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>}
               />
             </div>
           </div>
         </>
       )}
-
-      {/* Guest icon button */}
       <button
         onClick={() => setOpen((prev) => !prev)}
         className="transition-all duration-200 hover:scale-110"
         style={{
-          width: "44px",
-          height: "44px",
-          borderRadius: "50%",
-          border: `1.5px solid ${open
-            ? isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)"
-            : isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
+          width: "44px", height: "44px", borderRadius: "50%",
+          border: `1.5px solid ${open ? isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)" : isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
           backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
           backdropFilter: "blur(8px)",
-          boxShadow: open
-            ? isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)"
-            : isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          zIndex: 40,
+          boxShadow: open ? isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)" : isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 40,
         }}
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -372,11 +377,17 @@ function GameContent({
     takeInsurance,
     declineInsurance,
     newRound,
+    newShoe,
   } = useGameController(initialBankroll);
 
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
   const { hintVisible, trainMode, toggleTrainMode } = useCountStore();
   const [mounted, setMounted] = useState(false);
+  const [shoeAnimating, setShoeAnimating] = useState(false);
+  const [shoePhase, setShoePhase] = useState<"out" | "in" | null>(null);
+  const [animatingSlots, setAnimatingSlots] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
+  const [toastKey, setToastKey] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -388,12 +399,42 @@ function GameContent({
   const decksLeft = decksRemaining(shoe);
   const totalCards = 312;
   const totalSlots = 30;
-  const filledSlots = Math.round((shoe.length / totalCards) * totalSlots);
   const cardWidth = 28;
   const cardHeight = 40;
   const maxFanWidth = 160;
   const overlap = Math.floor((maxFanWidth - cardWidth) / (totalSlots - 1));
   const fanWidth = cardWidth + (totalSlots - 1) * overlap;
+
+  const filledSlots = shoeAnimating
+    ? animatingSlots
+    : Math.round((shoe.length / totalCards) * totalSlots);
+
+  const showNewShoe = phase === "idle" && !isAnimating && !shoeAnimating;
+
+  const handleNewShoe = useCallback(async () => {
+    if (!showNewShoe) return;
+    setShoeAnimating(true);
+
+    const currentSlots = Math.round((shoe.length / totalCards) * totalSlots);
+    setAnimatingSlots(currentSlots);
+    setShoePhase("out");
+
+    await new Promise((res) => setTimeout(res, currentSlots * 18 + 500));
+
+    newShoe();
+    setAnimatingSlots(totalSlots);
+    setShoePhase("in");
+
+    await new Promise((res) => setTimeout(res, totalSlots * 18 + 500));
+
+    setShoeAnimating(false);
+    setShoePhase(null);
+    setAnimatingSlots(0);
+
+    setToast("✦ Shoe reshuffled — count reset");
+    setToastKey((k) => k + 1);
+    setTimeout(() => setToast(null), 2500);
+  }, [showNewShoe, newShoe, shoe.length, totalCards, totalSlots]);
 
   const showHit = phase === "playerTurn" && activeHand && !isAnimating;
   const showDouble = !!(showHit && canDouble(activeHand.cards) && bankroll >= activeHand.bet && !activeHand.isLockedAce);
@@ -424,23 +465,14 @@ function GameContent({
         onClick={toggleTrainMode}
         title="Train Mode"
         style={{
-          width: "36px",
-          height: "20px",
-          borderRadius: "999px",
-          border: "none",
-          cursor: "pointer",
-          position: "relative",
-          backgroundColor: trainMode
-            ? isDark ? "#00f5ff" : "#8b6508"
-            : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+          width: "36px", height: "20px", borderRadius: "999px", border: "none", cursor: "pointer", position: "relative",
+          backgroundColor: trainMode ? isDark ? "#00f5ff" : "#8b6508" : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
           boxShadow: trainMode && isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none",
-          transition: "background-color 0.3s ease, box-shadow 0.3s ease",
-          flexShrink: 0,
+          transition: "background-color 0.3s ease, box-shadow 0.3s ease", flexShrink: 0,
         }}
       >
         <div style={{ position: "absolute", top: "2px", left: trainMode ? "18px" : "2px", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.3)", transition: "left 0.3s ease" }} />
       </button>
-
       <div style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <button
           onClick={toggleTheme}
@@ -453,6 +485,8 @@ function GameContent({
     </>
   );
 
+  const glowColor = isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.6)";
+
   return (
     <div className="felt-texture flex flex-col min-h-screen overflow-hidden relative" style={{ color: "var(--text-primary)" }}>
       <FloatingCards isDark={isDark} count={12} />
@@ -460,6 +494,8 @@ function GameContent({
       {flyingCards.map((fc) => (
         <FlyingCard key={fc.id} id={fc.id} from={fc.from} to={fc.to} faceDown={fc.faceDown} rank={fc.rank} suit={fc.suit} onComplete={onFlyingCardComplete} />
       ))}
+
+      {toast && <Toast key={toastKey} message={toast} isDark={isDark} />}
 
       {/* Fixed toggles — large screens only */}
       <div className="large-toggles fixed top-4 right-3 z-50 items-center gap-3" style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
@@ -505,9 +541,38 @@ function GameContent({
                   if (i >= filledSlots) return null;
                   const lightness = theme === "light" ? 55 + i * 0.6 : 20 + i * 0.6;
                   const hue = theme === "light" ? 40 : 160;
-                  return <div key={i} className="absolute rounded-sm transition-all duration-300" style={{ width: `${cardWidth}px`, height: `${cardHeight}px`, left: `${i * overlap}px`, top: 0, zIndex: i, backgroundColor: `hsl(${hue}, 55%, ${lightness}%)`, border: "1px solid var(--shoe-border)", boxShadow: isDark ? "inset 0 0 4px rgba(0,245,255,0.1)" : "none" }} />;
+                  const waveDelay = `${i * 18}ms`;
+                  return (
+                    <div
+                      key={`${shoePhase}-${i}`}
+                      className="absolute rounded-sm"
+                      style={{
+                        width: `${cardWidth}px`,
+                        height: `${cardHeight}px`,
+                        left: `${i * overlap}px`,
+                        top: 0,
+                        zIndex: i,
+                        backgroundColor: `hsl(${hue}, 55%, ${lightness}%)`,
+                        border: "1px solid var(--shoe-border)",
+                        boxShadow: isDark ? "inset 0 0 4px rgba(0,245,255,0.1)" : "none",
+                        animation: shoePhase
+                          ? `${shoePhase === "out" ? "shoe-wave-out" : "shoe-wave-in"} 0.4s ease ${waveDelay} forwards`
+                          : "none",
+                        transition: shoeAnimating ? "none" : "all 0.3s ease",
+                        opacity: shoePhase === "in" ? 0 : 1,
+                      }}
+                    />
+                  );
                 })}
-                <div className="absolute top-0 w-px" style={{ left: `${(totalSlots - 1) * overlap + cardWidth}px`, height: `${cardHeight}px`, backgroundColor: "var(--shoe-marker)", boxShadow: isDark ? "0 0 4px rgba(0,245,255,0.4)" : "none" }} />
+                <div
+                  className="absolute top-0 w-px"
+                  style={{
+                    left: `${(totalSlots - 1) * overlap + cardWidth}px`,
+                    height: `${cardHeight}px`,
+                    backgroundColor: "var(--shoe-marker)",
+                    boxShadow: isDark ? "0 0 4px rgba(0,245,255,0.4)" : "none",
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -592,25 +657,17 @@ function GameContent({
               onClick={newRound}
               className="btn-appear hover:scale-105 active:scale-95 tracking-widest uppercase font-bold"
               style={{
-                padding: "14px 48px",
-                borderRadius: "999px",
-                fontFamily: "DM Mono, monospace",
-                fontSize: "13px",
-                letterSpacing: "0.15em",
-                cursor: "pointer",
+                padding: "14px 48px", borderRadius: "999px", fontFamily: "DM Mono, monospace", fontSize: "13px", letterSpacing: "0.15em", cursor: "pointer",
                 transition: "all 0.2s ease, background 0.2s ease, box-shadow 0.2s ease",
                 ...(isDark ? {
                   background: "linear-gradient(135deg, rgba(0,245,255,0.15), rgba(0,245,255,0.05))",
-                  border: "1.5px solid rgba(0,245,255,0.6)",
-                  color: "#00f5ff",
+                  border: "1.5px solid rgba(0,245,255,0.6)", color: "#00f5ff",
                   boxShadow: "0 0 24px rgba(0,245,255,0.2), inset 0 0 24px rgba(0,245,255,0.05)",
                   textShadow: "0 0 10px rgba(0,245,255,0.7)",
                 } : {
                   background: "linear-gradient(135deg, rgba(107,77,6,0.12), rgba(107,77,6,0.06))",
-                  border: "1.5px solid rgba(107,77,6,0.7)",
-                  color: "#4a3500",
-                  boxShadow: "0 4px 16px rgba(107,77,6,0.2)",
-                  textShadow: "none",
+                  border: "1.5px solid rgba(107,77,6,0.7)", color: "#4a3500",
+                  boxShadow: "0 4px 16px rgba(107,77,6,0.2)", textShadow: "none",
                 }),
               }}
               onMouseEnter={(e) => {
@@ -627,25 +684,15 @@ function GameContent({
               ✦ Next Round ✦
             </button>
           )}
-
         </div>
       </div>
 
       <CountOverlay phase={phase} playerHand={activeHand ?? null} dealerUpCard={dealerHand.cards[0]?.rank ?? null} />
 
-      {/* Guest menu */}
-      {!profile && (
-        <div style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
-          <GuestMenu isDark={isDark} />
-        </div>
-      )}
-
-      {/* Logged in avatar menu */}
-        {profile && (
-          <div style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
-            <AvatarMenu profile={profile} bankroll={bankroll} isDark={isDark} onDashboard={() => router.push("/dashboard")} />
-          </div>
-        )}
+      <div style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
+        {!profile && <GuestMenu isDark={isDark} onNewShoe={handleNewShoe} showNewShoe={showNewShoe} />}
+        {profile && <AvatarMenu profile={profile} bankroll={bankroll} isDark={isDark} onDashboard={() => router.push("/dashboard")} onNewShoe={handleNewShoe} showNewShoe={showNewShoe} />}
+      </div>
 
       <style>{`
         .large-toggles { display: flex; }
@@ -662,6 +709,22 @@ function GameContent({
         @keyframes menu-appear {
           from { opacity: 0; transform: translateY(8px) scale(0.95); }
           to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes shoe-wave-out {
+          0%   { transform: translateY(0) scaleY(1); opacity: 1; filter: brightness(1); }
+          40%  { transform: translateY(-8px) scaleY(1.12); opacity: 1; filter: brightness(2) drop-shadow(0 0 8px ${glowColor}); }
+          100% { transform: translateY(8px) scaleY(0.7); opacity: 0; filter: brightness(0.3); }
+        }
+        @keyframes shoe-wave-in {
+          0%   { transform: translateY(-10px) scaleY(0.7); opacity: 0; filter: brightness(0.3); }
+          60%  { transform: translateY(2px) scaleY(1.08); opacity: 1; filter: brightness(1.6) drop-shadow(0 0 6px ${glowColor}); }
+          100% { transform: translateY(0) scaleY(1); opacity: 1; filter: brightness(1); }
+        }
+        @keyframes toast-appear {
+          0%   { opacity: 0; transform: translateY(-6px); }
+          12%  { opacity: 1; transform: translateY(0); }
+          80%  { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-4px); }
         }
       `}</style>
     </div>
@@ -702,12 +765,10 @@ export default function GamePage() {
     );
   }
 
-  // guest
   if (!profile) {
     return <GameContent profile={null} bankroll={1000} sessionId={null} />;
   }
 
-  // logged in — waiting for session data after refresh
   if (gameReady && (gameBankroll === null || sessionId === null)) {
     return (
       <div className="felt-texture min-h-screen flex items-center justify-center">
@@ -718,7 +779,6 @@ export default function GamePage() {
     );
   }
 
-  // logged in — show session gate
   if (!gameReady || gameBankroll === null || sessionId === null) {
     return (
       <SessionGate
