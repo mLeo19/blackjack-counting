@@ -97,7 +97,6 @@ export default function SignupPage() {
       user_id: data.user.id,
       username,
       bankroll: bankrollNum,
-      starting_bankroll: bankrollNum,
     });
 
     if (profileError) {

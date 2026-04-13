@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Card from "@/components/game/Card";
 import FlyingCard from "@/components/game/FlyingCard";
-import DebugPanel from "@/components/game/DebugPanel";
 import BetControls from "@/components/game/BetControls";
 import CountOverlay from "@/components/game/CountOverlay";
 import FloatingCards from "@/components/ui/FloatingCards";
+import SessionGate from "@/app/game/SessionGate";
 import { useGameController } from "@/hooks/useGameController";
 import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCountStore } from "@/store/countStore";
+import { useProfile } from "@/hooks/useProfile";
+import { saveBankroll } from "@/lib/supabase/profile";
+import { Profile } from "@/lib/supabase/profile";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
@@ -92,7 +96,19 @@ function ActionButton({
   );
 }
 
-export default function GamePage() {
+function GameContent({
+  profile,
+  bankroll: initialBankroll,
+  sessionId,
+}: {
+  profile: Profile | null;
+  bankroll: number;
+  sessionId: string | null;
+}) {
+  const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
+
   const {
     game,
     isAnimating,
@@ -107,12 +123,9 @@ export default function GamePage() {
     takeInsurance,
     declineInsurance,
     newRound,
-    debugDeal,
-    forceReshuffle,
-  } = useGameController();
+  } = useGameController(initialBankroll);
 
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
-  const { theme, toggleTheme } = useTheme();
   const { hintVisible, trainMode, toggleTrainMode } = useCountStore();
   const [mounted, setMounted] = useState(false);
 
@@ -141,8 +154,6 @@ export default function GamePage() {
     ? getBasicStrategy(activeHand, dealerHand.cards[0].rank)
     : null;
 
-  const isDark = theme === "dark";
-
   const handValueStyle = {
     fontFamily: "Playfair Display, serif",
     fontWeight: 700,
@@ -151,15 +162,84 @@ export default function GamePage() {
     fontSize: "15px",
   };
 
+  useEffect(() => {
+    if (phase === "roundOver" && profile && sessionId) {
+      saveBankroll(bankroll);
+    }
+  }, [phase, bankroll, profile, sessionId]);
+
+  const togglesJSX = (
+    <>
+      <button
+        onClick={toggleTrainMode}
+        title="Train Mode"
+        style={{
+          width: "36px",
+          height: "20px",
+          borderRadius: "999px",
+          border: "none",
+          cursor: "pointer",
+          position: "relative",
+          backgroundColor: trainMode
+            ? isDark ? "#00f5ff" : "#8b6508"
+            : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+          boxShadow: trainMode && isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none",
+          transition: "background-color 0.3s ease, box-shadow 0.3s ease",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{
+          position: "absolute",
+          top: "2px",
+          left: trainMode ? "18px" : "2px",
+          width: "16px",
+          height: "16px",
+          borderRadius: "50%",
+          backgroundColor: "white",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+          transition: "left 0.3s ease",
+        }} />
+      </button>
+
+      <div style={{
+        width: "24px",
+        height: "24px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        <button
+          onClick={toggleTheme}
+          title={isDark ? "Switch to Light" : "Switch to Dark"}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "20px",
+            filter: theme === "light" ? "brightness(0)" : "none",
+            lineHeight: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "20px",
+            height: "20px",
+            padding: 0,
+          }}
+        >
+          {isDark ? "☀️" : "🌙"}
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div
       className="felt-texture flex flex-col min-h-screen overflow-hidden relative"
       style={{ color: "var(--text-primary)" }}
     >
-      {/* Floating background cards */}
       <FloatingCards isDark={isDark} count={12} />
 
-      {/* Flying cards overlay */}
       {flyingCards.map((fc) => (
         <FlyingCard
           key={fc.id}
@@ -173,76 +253,15 @@ export default function GamePage() {
         />
       ))}
 
-      {/* Top right controls — no labels, just toggles */}
+      {/* Fixed toggles — large screens only */}
       <div
-        className="fixed top-4 right-3 z-50 flex items-center gap-3"
+        className="large-toggles fixed top-4 right-3 z-50 items-center gap-3"
         style={{
           opacity: mounted ? 1 : 0,
           transition: "opacity 0.8s ease 0.1s",
         }}
       >
-        {/* Train toggle */}
-        <button
-          onClick={toggleTrainMode}
-          title="Train Mode"
-          style={{
-            width: "36px",
-            height: "20px",
-            borderRadius: "999px",
-            border: "none",
-            cursor: "pointer",
-            position: "relative",
-            backgroundColor: trainMode
-              ? isDark ? "#00f5ff" : "#8b6508"
-              : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
-            boxShadow: trainMode && isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none",
-            transition: "background-color 0.3s ease, box-shadow 0.3s ease",
-            flexShrink: 0,
-          }}
-        >
-          <div style={{
-            position: "absolute",
-            top: "2px",
-            left: trainMode ? "18px" : "2px",
-            width: "16px",
-            height: "16px",
-            borderRadius: "50%",
-            backgroundColor: "white",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-            transition: "left 0.3s ease",
-          }} />
-        </button>
-
-        {/* Theme toggle */}
-        <div style={{
-          width: "24px",
-          height: "24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}>
-          <button
-            onClick={toggleTheme}
-            title={isDark ? "Switch to Light" : "Switch to Dark"}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "20px",
-              filter: theme === "light" ? "brightness(0)" : "none",
-              lineHeight: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "20px",
-              height: "20px",
-              padding: 0,
-            }}
-          >
-            {isDark ? "☀️" : "🌙"}
-          </button>
-        </div>
+        {togglesJSX}
       </div>
 
       {/* ── Top bar ── */}
@@ -276,25 +295,35 @@ export default function GamePage() {
           </div>
 
           {/* Right — Stats + Shoe */}
-          <div
-            className="flex flex-col items-center justify-center gap-3 py-4 w-56"
-            style={{ paddingLeft: "16px", paddingRight: "clamp(80px, 15vw, 120px)" }}
-          >
-            <div className="flex flex-col items-center">
-              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Bankroll</span>
-              <span className="text-xl font-bold neon-gold-text" style={{ fontFamily: "Playfair Display, serif" }}>
-                ${bankroll.toLocaleString()}
-              </span>
+          <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-56">
+
+            {/* Bankroll row — inline toggles on small screens */}
+            <div className="flex items-center justify-center gap-2">
+              <div className="flex flex-col items-center">
+                <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Bankroll</span>
+                <span className="text-xl font-bold neon-gold-text" style={{ fontFamily: "Playfair Display, serif" }}>
+                  ${bankroll.toLocaleString()}
+                </span>
+              </div>
+              <div className="small-toggles items-center gap-2">
+                {togglesJSX}
+              </div>
             </div>
+
             <div className="flex flex-col items-center">
               <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Decks Left</span>
               <span className="text-lg font-semibold neon-text">{decksLeft}</span>
             </div>
+
             <div className="flex flex-col items-center gap-1 w-full overflow-hidden">
               <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Shoe — {shoe.length}/{totalCards}
               </span>
-              <div ref={shoeRef} className="relative" style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}>
+              <div
+                ref={shoeRef}
+                className="relative"
+                style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}
+              >
                 {Array.from({ length: totalSlots }).map((_, i) => {
                   const filled = i < filledSlots;
                   if (!filled) return null;
@@ -420,7 +449,6 @@ export default function GamePage() {
         {/* Controls */}
         <div className="flex flex-col items-center gap-5 w-full max-w-lg">
 
-          {/* Insurance */}
           {phase === "insurance" && !isAnimating && (
             <div className="flex flex-col items-center gap-3">
               <span className="text-sm tracking-widest uppercase" style={{ color: "var(--insurance-color)", fontFamily: "DM Mono, monospace", textShadow: isDark ? "0 0 10px rgba(255,215,0,0.5)" : "none" }}>
@@ -437,7 +465,6 @@ export default function GamePage() {
             </div>
           )}
 
-          {/* Action buttons */}
           {phase === "playerTurn" && activeHand && !isAnimating && (
             <div className="flex gap-3 flex-wrap justify-center">
               <ActionButton theme={theme} color="#00f5ff" label="Hit" onClick={hit} highlighted={recommendedAction === "hit"} />
@@ -448,12 +475,10 @@ export default function GamePage() {
             </div>
           )}
 
-          {/* Bet controls */}
           {phase === "idle" && !isAnimating && (
             <BetControls bankroll={bankroll} onDeal={(bet) => deal(bet)} />
           )}
 
-          {/* Next Round */}
           {phase === "roundOver" && !isAnimating && (
             <button
               onClick={newRound}
@@ -514,9 +539,49 @@ export default function GamePage() {
         dealerUpCard={dealerHand.cards[0]?.rank ?? null}
       />
 
-      <DebugPanel onScenario={debugDeal} onForceReshuffle={forceReshuffle} />
+      {profile && (
+        <button
+          onClick={() => router.push("/dashboard")}
+          title={profile.username}
+          className="fixed bottom-6 right-6 z-40 transition-all duration-200 hover:scale-110"
+          style={{
+            width: "44px",
+            height: "44px",
+            borderRadius: "50%",
+            border: `1.5px solid ${isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
+            backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
+            backdropFilter: "blur(8px)",
+            boxShadow: isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)";
+            e.currentTarget.style.borderColor = isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)";
+            e.currentTarget.style.borderColor = isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)";
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+          </svg>
+        </button>
+      )}
 
       <style>{`
+        .large-toggles { display: flex; }
+        .small-toggles { display: none; }
+
+        @media (max-width: 640px) {
+          .large-toggles { display: none !important; }
+          .small-toggles { display: flex !important; }
+        }
+
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
@@ -527,4 +592,50 @@ export default function GamePage() {
       `}</style>
     </div>
   );
+}
+
+export default function GamePage() {
+  const { profile, loading } = useProfile();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const [gameReady, setGameReady] = useState(false);
+  const [gameBankroll, setGameBankroll] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  if (loading) {
+    return (
+      <div className="felt-texture min-h-screen flex items-center justify-center">
+        <span style={{
+          fontFamily: "DM Mono, monospace",
+          fontSize: "12px",
+          letterSpacing: "0.15em",
+          textTransform: "uppercase",
+          color: isDark ? "rgba(0,245,255,0.5)" : "rgba(107,77,6,0.5)",
+        }}>
+          Loading...
+        </span>
+      </div>
+    );
+  }
+
+  // guest — go straight to game with default bankroll
+  if (!profile) {
+    return <GameContent profile={null} bankroll={1000} sessionId={null} />;
+  }
+
+  // logged in — show session gate first
+  if (!gameReady || gameBankroll === null || sessionId === null) {
+    return (
+      <SessionGate
+        profile={profile}
+        onReady={(bankroll, sid) => {
+          setGameBankroll(bankroll);
+          setSessionId(sid);
+          setGameReady(true);
+        }}
+      />
+    );
+  }
+
+  return <GameContent profile={profile} bankroll={gameBankroll} sessionId={sessionId} />;
 }

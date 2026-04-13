@@ -27,7 +27,14 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // protect /dashboard route — redirect to login if not authenticated
+  const authPages = ["/", "/login", "/signup"];
+
+  // logged in users get redirected away from auth pages to game
+  if (user && authPages.includes(request.nextUrl.pathname)) {
+    return NextResponse.redirect(new URL("/game", request.url));
+  }
+
+  // logged out users get redirected away from dashboard to login
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -36,5 +43,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/", "/login", "/signup", "/dashboard/:path*"],
 };
