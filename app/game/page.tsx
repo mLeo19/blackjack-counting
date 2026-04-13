@@ -195,6 +195,7 @@ function AvatarMenu({
 
   const handleLogout = async () => {
     sessionStorage.removeItem("gameActive");
+    useCountStore.getState().resetTrainMode();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
@@ -390,6 +391,9 @@ function GameContent({
   const [toastKey, setToastKey] = useState(0);
 
   useEffect(() => {
+    if (!profile) {
+      useCountStore.getState().resetTrainMode();
+    }
     const timer = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(timer);
   }, []);

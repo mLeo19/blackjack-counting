@@ -12,11 +12,11 @@ interface CountStore {
   hintVisible: boolean;
   hintUsed: boolean;
   countHistory: CountEntry[];
-
   addCount: (value: number, rank: string) => void;
   setTrueCount: (value: number) => void;
   resetCount: () => void;
   toggleTrainMode: () => void;
+  resetTrainMode: () => void;
   showHint: () => void;
   hideHint: () => void;
   resetHint: () => void;
@@ -30,22 +30,18 @@ export const useCountStore = create<CountStore>((set) => ({
   hintVisible: false,
   hintUsed: false,
   countHistory: [],
-
   addCount: (value, rank) => set((state) => ({
     runningCount: state.runningCount + value,
     countHistory: [...state.countHistory, { value, rank }],
   })),
-
   setTrueCount: (value) => set({ trueCount: value }),
-
   resetCount: () => set({ runningCount: 0, trueCount: 0, countHistory: [] }),
-
   toggleTrainMode: () => set((state) => ({
     trainMode: !state.trainMode,
     hintVisible: false,
     hintUsed: false,
   })),
-
+  resetTrainMode: () => set({ trainMode: false, hintVisible: false, hintUsed: false }),
   showHint: () => set({ hintVisible: true, hintUsed: true }),
   hideHint: () => set({ hintVisible: false }),
   resetHint: () => set({ hintVisible: false, hintUsed: false }),
