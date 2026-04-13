@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { theme } = useTheme();
   const router = useRouter();
   const isDark = theme === "dark";
+  const [mounted, setMounted] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +19,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const inputStyle = (focused: boolean) => ({
     width: "100%",
@@ -66,7 +72,44 @@ export default function LoginPage() {
 
   return (
     <PageLayout>
-      <div className="flex flex-1 items-center justify-center px-6 py-12">
+      <div
+        className="flex flex-1 flex-col items-center justify-center px-6 py-8"
+        style={{
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(20px)",
+          transition: "opacity 0.9s ease 0.1s, transform 0.9s ease 0.1s",
+        }}
+      >
+        {/* Back button — aligned to left edge of form */}
+        <div style={{ width: "100%", maxWidth: "400px", marginBottom: "12px" }}>
+          <button
+            onClick={() => router.back()}
+            style={{
+              fontFamily: "DM Mono, monospace",
+              fontSize: "12px",
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.6)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = isDark ? "rgba(0,245,255,1)" : "rgba(107,77,6,1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.6)";
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+
         <div style={{
           width: "100%",
           maxWidth: "400px",

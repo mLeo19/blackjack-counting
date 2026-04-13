@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +11,7 @@ export default function SignupPage() {
   const { theme } = useTheme();
   const router = useRouter();
   const isDark = theme === "dark";
+  const [mounted, setMounted] = useState(false);
 
   const [step, setStep] = useState<"credentials" | "profile">("credentials");
   const [email, setEmail] = useState("");
@@ -24,6 +25,11 @@ export default function SignupPage() {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [usernameFocused, setUsernameFocused] = useState(false);
   const [bankrollFocused, setBankrollFocused] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const inputStyle = (focused: boolean) => ({
     width: "100%",
@@ -115,7 +121,43 @@ export default function SignupPage() {
 
   return (
     <PageLayout>
-      <div className="flex flex-1 items-center justify-center px-6 py-12">
+      <div
+        className="flex flex-1 flex-col items-center justify-center px-6 py-8"
+        style={{
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(20px)",
+          transition: "opacity 0.9s ease 0.1s, transform 0.9s ease 0.1s",
+        }}
+      >
+        {/* Back button — aligned to left edge of form */}
+        <div style={{ width: "100%", maxWidth: "400px", marginBottom: "12px" }}>
+          <button
+            onClick={() => step === "profile" ? setStep("credentials") : router.back()}
+            style={{
+              fontFamily: "DM Mono, monospace",
+              fontSize: "12px",
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.6)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = isDark ? "rgba(0,245,255,1)" : "rgba(107,77,6,1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.6)";
+            }}
+          >
+            ← Back
+          </button>
+        </div>
         <div style={{
           width: "100%",
           maxWidth: "400px",
@@ -208,16 +250,7 @@ export default function SignupPage() {
               <div>
                 <label style={labelStyle}>Starting Bankroll</label>
                 <div style={{ position: "relative" }}>
-                  <span style={{
-                    position: "absolute",
-                    left: "16px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontFamily: "DM Mono, monospace",
-                    fontSize: "13px",
-                    color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
-                    pointerEvents: "none",
-                  }}>$</span>
+                  <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontFamily: "DM Mono, monospace", fontSize: "13px", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", pointerEvents: "none" }}>$</span>
                   <input
                     type="number"
                     value={bankroll}
@@ -238,24 +271,11 @@ export default function SignupPage() {
                   ✦ {error}
                 </p>
               )}
-              <div className="flex gap-3">
-                <div style={{ flex: 1 }}>
-                  <AuthButton
-                    label="← Back"
-                    type="button"
-                    isDark={isDark}
-                    color={isDark ? "rgba(255,255,255,0.4)" : undefined}
-                    onClick={() => { setStep("credentials"); setError(""); }}
-                  />
-                </div>
-                <div style={{ flex: 2 }}>
-                  <AuthButton
-                    label={loading ? "Creating..." : "Create Account"}
-                    disabled={loading}
-                    isDark={isDark}
-                  />
-                </div>
-              </div>
+              <AuthButton
+                label={loading ? "Creating..." : "Create Account"}
+                disabled={loading}
+                isDark={isDark}
+              />
             </form>
           )}
 

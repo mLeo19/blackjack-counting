@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { useRouter } from "next/navigation";
-import { Profile, SessionStats, getOpenSession, closeSession, createNewSession } from "@/lib/supabase/profile";
-import { saveBankroll } from "@/lib/supabase/profile";
+import { Profile, SessionStats, getOpenSession, closeSession, createNewSession, saveBankroll } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/client";
 import FloatingCards from "@/components/ui/FloatingCards";
 
@@ -20,6 +19,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
 
   const [openSession, setOpenSession] = useState<SessionStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [showNewGame, setShowNewGame] = useState(false);
   const [newBankroll, setNewBankroll] = useState("");
   const [bankrollFocused, setBankrollFocused] = useState(false);
@@ -30,15 +30,15 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
     getOpenSession().then((session) => {
       if (session) {
         const sessionAge = Date.now() - new Date(session.started_at).getTime();
-        const isJustCreated = sessionAge < 60000; // less than 60 seconds old
+        const isJustCreated = sessionAge < 60000;
         if (isJustCreated) {
-          // brand new session from signup — skip gate
           onReady(profile.bankroll, session.id);
           return;
         }
       }
       setOpenSession(session);
       setLoading(false);
+      setTimeout(() => setMounted(true), 50);
     });
   }, []);
 
@@ -55,15 +55,12 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
     }
     setProcessing(true);
 
-    // close existing session if any
     if (openSession) {
       await closeSession(openSession.id, profile.bankroll, openSession.starting_bankroll);
     }
 
-    // update bankroll in profiles
     await saveBankroll(bankrollNum);
 
-    // create new session
     const sessionId = await createNewSession(bankrollNum);
     if (!sessionId) {
       setError("Failed to create session.");
@@ -75,6 +72,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
   };
 
   const handleLogout = async () => {
+    sessionStorage.removeItem("gameActive");
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
@@ -114,7 +112,14 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
       <FloatingCards isDark={isDark} count={12} />
 
       {/* Top bar */}
-      <div className="relative z-10 flex justify-between items-center px-8 py-6">
+      <div
+        className="relative z-10 flex justify-between items-center px-8 py-6"
+        style={{
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(-10px)",
+          transition: "opacity 0.8s ease, transform 0.8s ease",
+        }}
+      >
         <span style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", fontWeight: 700, color: isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)" }}>
           ♠ Soft17
         </span>
@@ -127,7 +132,14 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-6 py-12">
+      <div
+        className="relative z-10 flex flex-1 items-center justify-center px-6 py-12"
+        style={{
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? "translateY(0)" : "translateY(20px)",
+          transition: "opacity 0.9s ease 0.1s, transform 0.9s ease 0.1s",
+        }}
+      >
         <div style={{
           width: "100%",
           maxWidth: "400px",
@@ -153,7 +165,6 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
             <div className="flex flex-col gap-3">
               {openSession && (
                 <>
-                  {/* Current bankroll info */}
                   <div
                     className="flex flex-col items-center gap-1 py-4 rounded-2xl mb-2"
                     style={{
@@ -171,19 +182,9 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
                       Started with ${openSession.starting_bankroll.toLocaleString()}
                     </span>
                   </div>
-
-                  {/* Resume button */}
-                  <SessionButton
-                    label="Resume Session"
-                    onClick={handleResume}
-                    isDark={isDark}
-                    disabled={processing}
-                    variant="primary"
-                  />
+                  <SessionButton label="Resume Session" onClick={handleResume} isDark={isDark} disabled={processing} variant="primary" />
                 </>
               )}
-
-              {/* New Game button */}
               <SessionButton
                 label={openSession ? "New Game" : "Start Playing"}
                 onClick={() => setShowNewGame(true)}
@@ -191,15 +192,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
                 disabled={processing}
                 variant={openSession ? "secondary" : "primary"}
               />
-
-              {/* Logout */}
-              <SessionButton
-                label="Log Out"
-                onClick={handleLogout}
-                isDark={isDark}
-                disabled={processing}
-                variant="ghost"
-              />
+              <SessionButton label="Log Out" onClick={handleLogout} isDark={isDark} disabled={processing} variant="ghost" />
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -229,21 +222,10 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
               )}
               <div className="flex gap-3">
                 <div style={{ flex: 1 }}>
-                  <SessionButton
-                    label="← Back"
-                    onClick={() => { setShowNewGame(false); setError(""); }}
-                    isDark={isDark}
-                    variant="ghost"
-                  />
+                  <SessionButton label="← Back" onClick={() => { setShowNewGame(false); setError(""); }} isDark={isDark} variant="ghost" />
                 </div>
                 <div style={{ flex: 2 }}>
-                  <SessionButton
-                    label={processing ? "Starting..." : "Start Game"}
-                    onClick={handleNewGame}
-                    isDark={isDark}
-                    disabled={processing}
-                    variant="primary"
-                  />
+                  <SessionButton label={processing ? "Starting..." : "Start Game"} onClick={handleNewGame} isDark={isDark} disabled={processing} variant="primary" />
                 </div>
               </div>
             </div>
