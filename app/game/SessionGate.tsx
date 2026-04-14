@@ -12,9 +12,10 @@ interface SessionGateProps {
   profile: Profile;
   onReady: (bankroll: number, sessionId: string) => void;
   startOnNewGame?: boolean;
+  currentBankroll?: number;
 }
 
-export default function SessionGate({ profile, onReady, startOnNewGame = false }: SessionGateProps) {
+export default function SessionGate({ profile, onReady, startOnNewGame = false, currentBankroll }: SessionGateProps) {
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const isDark = theme === "dark";
@@ -27,6 +28,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
   const [bankrollFocused, setBankrollFocused] = useState(false);
   const [error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!startOnNewGame) {
@@ -35,6 +37,9 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
 
     getOpenSession().then((session) => {
       setOpenSession(session);
+      if (!session) {
+        setShowNewGame(true);
+      }
       setLoading(false);
       setTimeout(() => setMounted(true), 50);
     });
@@ -43,6 +48,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
   const handleResume = async () => {
     if (!openSession) return;
     setProcessing(true);
+    sessionStorage.setItem("gameActive", "true");
     onReady(profile.bankroll, openSession.id);
   };
 
@@ -66,10 +72,23 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
       return;
     }
 
+    sessionStorage.setItem("gameActive", "true");
     onReady(bankrollNum, sessionId);
   };
 
   const handleLogout = async () => {
+    sessionStorage.removeItem("gameActive");
+    useCountStore.getState().resetTrainMode();
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
+  const handleEndAndLogout = async () => {
+    setLoggingOut(true);
+    if (openSession) {
+      await closeSession(openSession.id, profile.bankroll, openSession.starting_bankroll);
+    }
     sessionStorage.removeItem("gameActive");
     useCountStore.getState().resetTrainMode();
     const supabase = createClient();
@@ -153,7 +172,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
           {/* Header */}
           <div className="flex flex-col items-center gap-1 mb-8">
             <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "24px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>
-              {showNewGame ? "New Session" : "Welcome back"}
+              {showNewGame ? "Start New Session" : "Welcome back"}
             </h1>
             <span style={{ fontFamily: "DM Mono, monospace", fontSize: "13px", color: isDark ? "#00f5ff" : "#8b6508", textShadow: isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none" }}>
               {profile.username}
@@ -181,17 +200,17 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
                       Started with ${openSession.starting_bankroll.toLocaleString()}
                     </span>
                   </div>
-                  <SessionButton label="Resume Session" onClick={handleResume} isDark={isDark} disabled={processing} variant="primary" />
+                  <SessionButton label="Resume Session" onClick={handleResume} isDark={isDark} disabled={processing || loggingOut} variant="primary" />
                 </>
               )}
               <SessionButton
-                label={openSession ? "New Session" : "Start Playing"}
+                label="End Session"
                 onClick={() => setShowNewGame(true)}
                 isDark={isDark}
-                disabled={processing}
-                variant={openSession ? "secondary" : "primary"}
+                disabled={processing || loggingOut}
+                variant="secondary"
               />
-              <SessionButton label="Log Out" onClick={handleLogout} isDark={isDark} disabled={processing} variant="ghost" />
+              <SessionButton label="Log Out" onClick={handleLogout} isDark={isDark} disabled={processing || loggingOut} variant="ghost" />
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -225,14 +244,17 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
                     label="← Back"
                     onClick={() => {
                       if (startOnNewGame) {
-                        // came from mid-game "New Session" — go back to game
-                        onReady(profile.bankroll, openSession?.id ?? "");
-                      } else {
+                        sessionStorage.setItem("gameActive", "true");
+                        onReady(currentBankroll ?? profile.bankroll, openSession?.id ?? "");
+                      } else if (openSession) {
                         setShowNewGame(false);
                         setError("");
+                      } else {
+                        handleLogout();
                       }
                     }}
                     isDark={isDark}
+                    disabled={processing || loggingOut}
                     variant="ghost"
                   />
                 </div>
@@ -241,11 +263,33 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
                     label={processing ? "Starting..." : "Start Session"}
                     onClick={handleNewGame}
                     isDark={isDark}
-                    disabled={processing}
+                    disabled={processing || loggingOut}
                     variant="primary"
                   />
                 </div>
               </div>
+
+              {/* End & Log Out — only shown when there's an active session to end */}
+              {(openSession || startOnNewGame) && (
+                <SessionButton
+                  label={loggingOut ? "Logging out..." : "End & Log Out"}
+                  onClick={handleEndAndLogout}
+                  isDark={isDark}
+                  disabled={processing || loggingOut}
+                  variant="ghost"
+                />
+              )}
+
+              {/* Plain Log Out — shown when there's no session to end */}
+              {!openSession && !startOnNewGame && (
+                <SessionButton
+                  label="Log Out"
+                  onClick={handleLogout}
+                  isDark={isDark}
+                  disabled={processing || loggingOut}
+                  variant="ghost"
+                />
+              )}
             </div>
           )}
         </div>
