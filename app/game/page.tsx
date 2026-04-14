@@ -13,7 +13,7 @@ import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCountStore } from "@/store/countStore";
 import { useProfile } from "@/hooks/useProfile";
-import { saveBankroll, Profile, getOpenSession } from "@/lib/supabase/profile";
+import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats, closeSession } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/client";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
@@ -182,6 +182,7 @@ function AvatarMenu({
   onDashboard,
   onNewShoe,
   showNewShoe,
+  onNewSession,
 }: {
   profile: Profile;
   bankroll: number;
@@ -189,6 +190,7 @@ function AvatarMenu({
   onDashboard: () => void;
   onNewShoe: () => void;
   showNewShoe: boolean;
+  onNewSession: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -227,6 +229,12 @@ function AvatarMenu({
                 isDark={isDark}
                 onClick={() => { setOpen(false); onDashboard(); }}
                 icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>}
+              />
+              <MenuButton
+                label="New Session"
+                isDark={isDark}
+                onClick={() => { setOpen(false); onNewSession(); }}
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>}
               />
               {showNewShoe && (
                 <MenuButton
@@ -355,10 +363,12 @@ function GameContent({
   profile,
   bankroll: initialBankroll,
   sessionId,
+  onNewSession,
 }: {
   profile: Profile | null;
   bankroll: number;
   sessionId: string | null;
+  onNewSession: () => void;
 }) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -459,7 +469,13 @@ function GameContent({
 
   useEffect(() => {
     if (phase === "roundOver" && profile && sessionId) {
+      const handsPlayed = results.length;
+      const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
+      const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
+
       saveBankroll(bankroll);
+      updateSessionStats(sessionId, handsPlayed, handsWon);
+      updateLifetimeStats(handsPlayed, handsWon, handsLost);
     }
   }, [phase, bankroll, profile, sessionId]);
 
@@ -501,7 +517,6 @@ function GameContent({
 
       {toast && <Toast key={toastKey} message={toast} isDark={isDark} />}
 
-      {/* Fixed toggles — large screens only */}
       <div className="large-toggles fixed top-4 right-3 z-50 items-center gap-3" style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
         {togglesJSX}
       </div>
@@ -509,8 +524,6 @@ function GameContent({
       {/* ── Top bar ── */}
       <div className="flex justify-center relative" style={{ borderBottom: "1px solid var(--border)", zIndex: 10, opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(-10px)", transition: "opacity 0.8s ease, transform 0.8s ease" }}>
         <div className="flex w-full max-w-2xl">
-
-          {/* Left — Dealer */}
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-4 px-6" style={{ borderRight: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace" }}>Dealer</span>
@@ -523,7 +536,6 @@ function GameContent({
             </div>
           </div>
 
-          {/* Right — Stats + Shoe */}
           <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-56">
             <div className="flex items-center justify-center gap-2">
               <div className="flex flex-col items-center">
@@ -532,12 +544,10 @@ function GameContent({
               </div>
               <div className="small-toggles items-center gap-2">{togglesJSX}</div>
             </div>
-
             <div className="flex flex-col items-center">
               <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Decks Left</span>
               <span className="text-lg font-semibold neon-text">{decksLeft}</span>
             </div>
-
             <div className="flex flex-col items-center gap-1 w-full overflow-hidden">
               <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Shoe — {shoe.length}/{totalCards}</span>
               <div ref={shoeRef} className="relative" style={{ width: `${fanWidth}px`, height: `${cardHeight}px`, maxWidth: "100%" }}>
@@ -568,15 +578,7 @@ function GameContent({
                     />
                   );
                 })}
-                <div
-                  className="absolute top-0 w-px"
-                  style={{
-                    left: `${(totalSlots - 1) * overlap + cardWidth}px`,
-                    height: `${cardHeight}px`,
-                    backgroundColor: "var(--shoe-marker)",
-                    boxShadow: isDark ? "0 0 4px rgba(0,245,255,0.4)" : "none",
-                  }}
-                />
+                <div className="absolute top-0 w-px" style={{ left: `${(totalSlots - 1) * overlap + cardWidth}px`, height: `${cardHeight}px`, backgroundColor: "var(--shoe-marker)", boxShadow: isDark ? "0 0 4px rgba(0,245,255,0.4)" : "none" }} />
               </div>
             </div>
           </div>
@@ -586,7 +588,6 @@ function GameContent({
       {/* ── Main table ── */}
       <div className="flex flex-1 flex-col items-center justify-between py-8 px-4 gap-6 relative" style={{ zIndex: 10, opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(10px)", transition: "opacity 0.8s ease 0.1s, transform 0.8s ease 0.1s" }}>
 
-        {/* Player hands */}
         <div className="w-full max-w-3xl">
           <div className="flex flex-wrap justify-center gap-6">
             {playerHands.map((hand, handIndex) => (
@@ -627,7 +628,6 @@ function GameContent({
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex flex-col items-center gap-5 w-full max-w-lg">
 
           {phase === "insurance" && !isAnimating && (
@@ -695,7 +695,17 @@ function GameContent({
 
       <div style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
         {!profile && <GuestMenu isDark={isDark} onNewShoe={handleNewShoe} showNewShoe={showNewShoe} />}
-        {profile && <AvatarMenu profile={profile} bankroll={bankroll} isDark={isDark} onDashboard={() => router.push("/dashboard")} onNewShoe={handleNewShoe} showNewShoe={showNewShoe} />}
+        {profile && (
+          <AvatarMenu
+            profile={profile}
+            bankroll={bankroll}
+            isDark={isDark}
+            onDashboard={() => router.push("/dashboard")}
+            onNewShoe={handleNewShoe}
+            showNewShoe={showNewShoe}
+            onNewSession={onNewSession}
+          />
+        )}
       </div>
 
       <style>{`
@@ -745,6 +755,7 @@ export default function GamePage() {
   );
   const [gameBankroll, setGameBankroll] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showNewSessionGate, setShowNewSessionGate] = useState(false);
 
   useEffect(() => {
     if (gameReady && profile && gameBankroll === null) {
@@ -759,6 +770,13 @@ export default function GamePage() {
     }
   }, [gameReady, profile, gameBankroll]);
 
+  const handleNewSession = useCallback(async () => {
+    if (sessionId && profile && gameBankroll !== null) {
+      await closeSession(sessionId, gameBankroll, gameBankroll);
+    }
+    setShowNewSessionGate(true);
+  }, [sessionId, profile, gameBankroll]);
+
   if (loading) {
     return (
       <div className="felt-texture min-h-screen flex items-center justify-center">
@@ -770,7 +788,24 @@ export default function GamePage() {
   }
 
   if (!profile) {
-    return <GameContent profile={null} bankroll={1000} sessionId={null} />;
+    return <GameContent profile={null} bankroll={1000} sessionId={null} onNewSession={() => {}} />;
+  }
+
+  // show session gate for new session mid-game
+  if (showNewSessionGate) {
+    return (
+      <SessionGate
+        profile={profile}
+        startOnNewGame={true}
+        onReady={(bankroll, sid) => {
+          sessionStorage.setItem("gameActive", "true");
+          setGameBankroll(bankroll);
+          setSessionId(sid);
+          setGameReady(true);
+          setShowNewSessionGate(false);
+        }}
+      />
+    );
   }
 
   if (gameReady && (gameBankroll === null || sessionId === null)) {
@@ -797,5 +832,12 @@ export default function GamePage() {
     );
   }
 
-  return <GameContent profile={profile} bankroll={gameBankroll} sessionId={sessionId} />;
+  return (
+    <GameContent
+      profile={profile}
+      bankroll={gameBankroll}
+      sessionId={sessionId}
+      onNewSession={handleNewSession}
+    />
+  );
 }

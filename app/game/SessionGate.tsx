@@ -5,14 +5,16 @@ import { useTheme } from "@/context/ThemeContext";
 import { useRouter } from "next/navigation";
 import { Profile, SessionStats, getOpenSession, closeSession, createNewSession, saveBankroll } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/client";
+import { useCountStore } from "@/store/countStore";
 import FloatingCards from "@/components/ui/FloatingCards";
 
 interface SessionGateProps {
   profile: Profile;
   onReady: (bankroll: number, sessionId: string) => void;
+  startOnNewGame?: boolean;
 }
 
-export default function SessionGate({ profile, onReady }: SessionGateProps) {
+export default function SessionGate({ profile, onReady, startOnNewGame = false }: SessionGateProps) {
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const isDark = theme === "dark";
@@ -20,7 +22,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
   const [openSession, setOpenSession] = useState<SessionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [showNewGame, setShowNewGame] = useState(false);
+  const [showNewGame, setShowNewGame] = useState(startOnNewGame);
   const [newBankroll, setNewBankroll] = useState("");
   const [bankrollFocused, setBankrollFocused] = useState(false);
   const [error, setError] = useState("");
@@ -28,7 +30,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
 
   useEffect(() => {
     getOpenSession().then((session) => {
-      if (session) {
+      if (!startOnNewGame && session) {
         const sessionAge = Date.now() - new Date(session.started_at).getTime();
         const isJustCreated = sessionAge < 60000;
         if (isJustCreated) {
@@ -73,6 +75,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
 
   const handleLogout = async () => {
     sessionStorage.removeItem("gameActive");
+    useCountStore.getState().resetTrainMode();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
@@ -154,7 +157,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
           {/* Header */}
           <div className="flex flex-col items-center gap-1 mb-8">
             <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "24px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>
-              Welcome back
+              {showNewGame ? "New Session" : "Welcome back"}
             </h1>
             <span style={{ fontFamily: "DM Mono, monospace", fontSize: "13px", color: isDark ? "#00f5ff" : "#8b6508", textShadow: isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none" }}>
               {profile.username}
@@ -186,7 +189,7 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
                 </>
               )}
               <SessionButton
-                label={openSession ? "New Game" : "Start Playing"}
+                label={openSession ? "New Session" : "Start Playing"}
                 onClick={() => setShowNewGame(true)}
                 isDark={isDark}
                 disabled={processing}
@@ -222,10 +225,29 @@ export default function SessionGate({ profile, onReady }: SessionGateProps) {
               )}
               <div className="flex gap-3">
                 <div style={{ flex: 1 }}>
-                  <SessionButton label="← Back" onClick={() => { setShowNewGame(false); setError(""); }} isDark={isDark} variant="ghost" />
+                  <SessionButton
+                    label="← Back"
+                    onClick={() => {
+                      if (startOnNewGame) {
+                        // came from mid-game "New Session" — go back to game
+                        onReady(profile.bankroll, openSession?.id ?? "");
+                      } else {
+                        setShowNewGame(false);
+                        setError("");
+                      }
+                    }}
+                    isDark={isDark}
+                    variant="ghost"
+                  />
                 </div>
                 <div style={{ flex: 2 }}>
-                  <SessionButton label={processing ? "Starting..." : "Start Game"} onClick={handleNewGame} isDark={isDark} disabled={processing} variant="primary" />
+                  <SessionButton
+                    label={processing ? "Starting..." : "Start Session"}
+                    onClick={handleNewGame}
+                    isDark={isDark}
+                    disabled={processing}
+                    variant="primary"
+                  />
                 </div>
               </div>
             </div>
