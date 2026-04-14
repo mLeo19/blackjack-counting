@@ -771,9 +771,9 @@ export default function GamePage() {
   }, [gameReady, profile, gameBankroll]);
 
   const handleNewSession = useCallback(async () => {
-    if (sessionId && profile && gameBankroll !== null) {
-      await closeSession(sessionId, gameBankroll, gameBankroll);
-    }
+    //if (sessionId && profile && gameBankroll !== null) {
+      //await closeSession(sessionId, gameBankroll, gameBankroll);
+    //}
     setShowNewSessionGate(true);
   }, [sessionId, profile, gameBankroll]);
 

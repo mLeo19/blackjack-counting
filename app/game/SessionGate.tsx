@@ -29,15 +29,11 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false }
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
+    if (!startOnNewGame) {
+      sessionStorage.removeItem("gameActive");
+    }
+
     getOpenSession().then((session) => {
-      if (!startOnNewGame && session) {
-        const sessionAge = Date.now() - new Date(session.started_at).getTime();
-        const isJustCreated = sessionAge < 60000;
-        if (isJustCreated) {
-          onReady(profile.bankroll, session.id);
-          return;
-        }
-      }
       setOpenSession(session);
       setLoading(false);
       setTimeout(() => setMounted(true), 50);

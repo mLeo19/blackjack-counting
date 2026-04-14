@@ -116,6 +116,7 @@ export default function SignupPage() {
       starting_bankroll: bankrollNum,
     });
 
+    sessionStorage.setItem("gameActive", "true");
     router.push("/game");
   };
 
