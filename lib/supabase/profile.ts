@@ -177,3 +177,35 @@ export async function updateLifetimeStats(
     })
     .eq("user_id", user.id);
 }
+
+export async function getLifetimeStats() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("lifetime_stats")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
+export async function getSessionHistory(limit = 10, offset = 0) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("session_stats")
+    .select("*")
+    .eq("user_id", user.id)
+    .not("ended_at", "is", null)
+    .order("ended_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error || !data) return [];
+  return data;
+}
