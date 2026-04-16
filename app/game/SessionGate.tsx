@@ -60,7 +60,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
     setProcessing(true);
 
     if (openSession) {
-      await closeSession(openSession.id, profile.bankroll, openSession.starting_bankroll);
+      await closeSession(openSession.id, currentBankroll ?? profile.bankroll, openSession.starting_bankroll);
     }
 
     await saveBankroll(bankrollNum);
@@ -87,7 +87,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
   const handleEndAndLogout = async () => {
     setLoggingOut(true);
     if (openSession) {
-      await closeSession(openSession.id, profile.bankroll, openSession.starting_bankroll);
+      await closeSession(openSession.id, currentBankroll ?? profile.bankroll, openSession.starting_bankroll);
     }
     sessionStorage.removeItem("gameActive");
     useCountStore.getState().resetTrainMode();

@@ -209,3 +209,49 @@ export async function getSessionHistory(limit = 10, offset = 0) {
   if (error || !data) return [];
   return data;
 }
+
+export async function getTotalNetProfit(): Promise<number> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data, error } = await supabase
+    .from("session_stats")
+    .select("net_profit")
+    .eq("user_id", user.id)
+    .not("net_profit", "is", null);
+
+  if (error || !data) return 0;
+  return data.reduce((sum, s) => sum + parseFloat(s.net_profit), 0);
+}
+
+export async function getRecentSessionsForChart(limit = 10) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("session_stats")
+    .select("id, profit_percent, ended_at, net_profit")
+    .eq("user_id", user.id)
+    .not("ended_at", "is", null)
+    .not("profit_percent", "is", null)
+    .order("ended_at", { ascending: true })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data;
+}
+
+export async function getCurrentSessionStats(sessionId: string) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("session_stats")
+    .select("hands_played, hands_won, starting_bankroll, started_at")
+    .eq("id", sessionId)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}

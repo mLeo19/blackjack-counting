@@ -38,7 +38,7 @@ export function useGameController(initialBankroll?: number) {
   const { getShoePosition, getDealerPosition, getPlayerPosition } = useShoeContext();
   const { addCount, setTrueCount, resetCount, resetHint, clearHistory } = useCountStore();
 
-  const initial = initialBankroll
+  const initial = initialBankroll !== undefined && initialBankroll !== null
     ? { ...createInitialState(), bankroll: initialBankroll }
     : createInitialState();
 
