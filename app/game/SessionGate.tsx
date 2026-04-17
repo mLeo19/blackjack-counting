@@ -274,7 +274,8 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
                         setShowNewGame(false);
                         setError("");
                       } else if (fromDashboard) {
-                        router.back();
+                        router.push("/dashboard");
+                        //router.back();
                       } else {
                         handleLogout();
                       }
