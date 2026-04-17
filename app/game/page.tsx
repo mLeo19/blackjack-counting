@@ -1,243 +1,27 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Card from "@/components/game/Card";
 import FlyingCard from "@/components/game/FlyingCard";
 import BetControls from "@/components/game/BetControls";
 import CountOverlay from "@/components/game/CountOverlay";
 import FloatingCards from "@/components/ui/FloatingCards";
 import SessionGate from "@/app/game/SessionGate";
+import AvatarMenu from "@/components/game/AvatarMenu";
+import GuestMenu from "@/components/game/GuestMenu";
+import ActionButton from "@/components/game/ActionButton";
+import TrainToggle from "@/components/game/TrainToggle";
+import GameToast from "@/components/game/GameToast";
 import { useGameController } from "@/hooks/useGameController";
 import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCountStore } from "@/store/countStore";
 import { useProfile } from "@/hooks/useProfile";
-import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats, closeSession } from "@/lib/supabase/profile";
-import { createClient } from "@/lib/supabase/client";
+import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats } from "@/lib/supabase/profile";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
-import { useSearchParams } from "next/navigation";
-
-function darken(hex: string): string {
-  const map: Record<string, string> = {
-    "#00f5ff": "#004f54",
-    "#ff2d78": "#8a0030",
-    "#ffd700": "#6b5200",
-    "#a855f7": "#5b1a9e",
-    "#ff6b35": "#8a2d00",
-  };
-  return map[hex] ?? hex;
-}
-
-function Toast({ message, isDark }: { message: string; isDark: boolean }) {
-  return (
-    <div style={{
-      position: "fixed", top: "20px", right: "16px", zIndex: 100,
-      padding: "10px 20px", borderRadius: "999px",
-      backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.9)",
-      border: `1px solid ${isDark ? "rgba(0,245,255,0.3)" : "rgba(107,77,6,0.3)"}`,
-      backdropFilter: "blur(12px)",
-      boxShadow: isDark ? "0 0 24px rgba(0,245,255,0.15)" : "0 8px 32px rgba(0,0,0,0.1)",
-      fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
-      letterSpacing: "0.12em",
-      color: isDark ? "#00f5ff" : "#4a3500",
-      textShadow: isDark ? "0 0 10px rgba(0,245,255,0.6)" : "none",
-      animation: "toast-appear 2.5s ease forwards", whiteSpace: "nowrap",
-    }}>
-      {message}
-    </div>
-  );
-}
-
-function ActionButton({ label, color, onClick, theme, highlighted }: {
-  label: string; color: string; onClick: () => void; theme: string; highlighted?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="btn-appear hover:scale-105 active:scale-95"
-      style={{
-        padding: "10px 24px", borderRadius: "999px",
-        backgroundColor: highlighted ? `${color}35` : theme === "light" ? `${color}25` : "transparent",
-        border: `1.5px solid ${highlighted ? color : theme === "light" ? darken(color) : color}`,
-        color: theme === "light" ? darken(color) : color,
-        fontSize: "12px", fontWeight: 700, fontFamily: "DM Mono, monospace",
-        letterSpacing: "0.1em", textTransform: "uppercase" as const,
-        boxShadow: highlighted
-          ? `0 0 20px ${color}80, 0 0 40px ${color}40, inset 0 0 20px ${color}20`
-          : theme === "dark" ? `0 0 12px ${color}40, inset 0 0 12px ${color}10` : `0 2px 8px ${color}50`,
-        textShadow: highlighted ? `0 0 12px ${color}` : theme === "dark" ? `0 0 8px ${color}80` : "none",
-        cursor: "pointer", transition: "all 0.2s ease",
-        transform: highlighted ? "scale(1.08)" : "scale(1)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = theme === "light" ? `${color}40` : `${color}20`;
-        e.currentTarget.style.boxShadow = theme === "dark" ? `0 0 24px ${color}70, inset 0 0 20px ${color}20` : `0 4px 16px ${color}70`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = highlighted ? `${color}35` : theme === "light" ? `${color}25` : "transparent";
-        e.currentTarget.style.boxShadow = highlighted
-          ? `0 0 20px ${color}80, 0 0 40px ${color}40, inset 0 0 20px ${color}20`
-          : theme === "dark" ? `0 0 12px ${color}40, inset 0 0 12px ${color}10` : `0 2px 8px ${color}50`;
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function MenuButton({ label, isDark, onClick, icon, danger, disabled }: {
-  label: string; isDark: boolean; onClick: () => void; icon?: React.ReactNode; danger?: boolean; disabled?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const color = danger ? "#ff2d78" : isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)";
-  return (
-    <button
-      onClick={onClick} disabled={disabled}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{
-        width: "100%", padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px",
-        background: hovered && !disabled ? isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" : "transparent",
-        border: "none", cursor: disabled ? "not-allowed" : "pointer",
-        color: disabled ? isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)" : color,
-        fontFamily: "DM Mono, monospace", fontSize: "12px", fontWeight: 600,
-        letterSpacing: "0.05em", textAlign: "left", transition: "background 0.15s ease",
-        textShadow: danger && hovered && isDark && !disabled ? "0 0 8px rgba(255,45,120,0.5)" : "none",
-        opacity: disabled ? 0.35 : 1,
-      }}
-    >
-      {icon}{label}
-    </button>
-  );
-}
-
-function AvatarMenu({ profile, bankroll, isDark, onDashboard, onNewShoe, showNewShoe, onNewSession }: {
-  profile: Profile; bankroll: number; isDark: boolean; onDashboard: () => void;
-  onNewShoe: () => void; showNewShoe: boolean; onNewSession: () => void;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-
-  const handleLogout = async () => {
-    sessionStorage.removeItem("gameActive");
-    useCountStore.getState().resetTrainMode();
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/");
-  };
-
-  return (
-    <div className="fixed bottom-6 right-6 z-40">
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-14 right-0 z-40 rounded-2xl overflow-hidden" style={{
-            minWidth: "200px",
-            backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.9)",
-            border: `1px solid ${isDark ? "rgba(0,245,255,0.15)" : "rgba(107,77,6,0.15)"}`,
-            backdropFilter: "blur(16px)",
-            boxShadow: isDark ? "0 0 40px rgba(0,0,0,0.6)" : "0 20px 60px rgba(0,0,0,0.12)",
-            animation: "menu-appear 0.15s ease forwards",
-          }}>
-            <div className="px-4 py-3 flex flex-col gap-0.5" style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
-              <span style={{ fontFamily: "Playfair Display, serif", fontSize: "15px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>{profile.username}</span>
-              <span style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "#ffd700" : "#8b6508", textShadow: isDark ? "0 0 8px rgba(255,215,0,0.3)" : "none" }}>${bankroll.toLocaleString()}</span>
-            </div>
-            <div className="py-1">
-              <MenuButton label="Dashboard" isDark={isDark} onClick={() => { setOpen(false); onDashboard(); }}
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>}
-              />
-              <MenuButton label="End Session" isDark={isDark} onClick={() => { setOpen(false); onNewSession(); }}
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" /></svg>}
-              />
-              {showNewShoe && (
-                <MenuButton label="New Shoe" isDark={isDark} onClick={() => { setOpen(false); onNewShoe(); }}
-                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>}
-                />
-              )}
-              <div style={{ height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />
-              <MenuButton label="Log Out" isDark={isDark} onClick={handleLogout} danger
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>}
-              />
-            </div>
-          </div>
-        </>
-      )}
-      <button onClick={() => setOpen((prev) => !prev)} className="transition-all duration-200 hover:scale-110"
-        style={{
-          width: "44px", height: "44px", borderRadius: "50%",
-          border: `1.5px solid ${open ? isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)" : isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
-          backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
-          backdropFilter: "blur(8px)",
-          boxShadow: open ? isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)" : isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 40,
-        }}
-      >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-function GuestMenu({ isDark, onNewShoe, showNewShoe }: {
-  isDark: boolean; onNewShoe: () => void; showNewShoe: boolean;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="fixed bottom-6 right-6 z-40">
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-14 right-0 z-40 rounded-2xl overflow-hidden" style={{
-            minWidth: "180px",
-            backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.9)",
-            border: `1px solid ${isDark ? "rgba(0,245,255,0.15)" : "rgba(107,77,6,0.15)"}`,
-            backdropFilter: "blur(16px)",
-            boxShadow: isDark ? "0 0 40px rgba(0,0,0,0.6)" : "0 20px 60px rgba(0,0,0,0.12)",
-            animation: "menu-appear 0.15s ease forwards",
-          }}>
-            <div className="py-1">
-              <MenuButton label="Log In" isDark={isDark} onClick={() => router.push("/login")}
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>}
-              />
-              <MenuButton label="Sign Up" isDark={isDark} onClick={() => router.push("/signup")}
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>}
-              />
-              {showNewShoe && (
-                <MenuButton label="New Shoe" isDark={isDark} onClick={() => { setOpen(false); onNewShoe(); }}
-                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>}
-                />
-              )}
-              <div style={{ height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />
-              <MenuButton label="Exit Game" isDark={isDark} onClick={() => router.push("/")} danger
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>}
-              />
-            </div>
-          </div>
-        </>
-      )}
-      <button onClick={() => setOpen((prev) => !prev)} className="transition-all duration-200 hover:scale-110"
-        style={{
-          width: "44px", height: "44px", borderRadius: "50%",
-          border: `1.5px solid ${open ? isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)" : isDark ? "rgba(0,245,255,0.4)" : "rgba(107,77,6,0.4)"}`,
-          backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.6)",
-          backdropFilter: "blur(8px)",
-          boxShadow: open ? isDark ? "0 0 24px rgba(0,245,255,0.4)" : "0 6px 24px rgba(107,77,6,0.3)" : isDark ? "0 0 16px rgba(0,245,255,0.2)" : "0 4px 16px rgba(107,77,6,0.15)",
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 40,
-        }}
-      >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isDark ? "rgba(0,245,255,0.8)" : "rgba(107,77,6,0.8)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 function GameContent({
   profile, bankroll: initialBankroll, sessionId, onNewSession, onBankrollChange,
@@ -284,7 +68,6 @@ function GameContent({
   const filledSlots = shoeAnimating ? animatingSlots : Math.round((shoe.length / totalCards) * totalSlots);
   const showNewShoe = phase === "idle" && !isAnimating && !shoeAnimating;
 
-  // notify parent of bankroll changes
   useEffect(() => {
     onBankrollChange(bankroll);
   }, [bankroll]);
@@ -337,55 +120,7 @@ function GameContent({
 
   const togglesJSX = (
     <>
-      <button
-        onClick={toggleTrainMode}
-        title="Train Mode"
-        style={{
-          width: "72px",
-          height: "30px",
-          borderRadius: "999px",
-          border: "none",
-          cursor: "pointer",
-          position: "relative",
-          backgroundColor: trainMode
-            ? isDark ? "#00f5ff" : "#8b6508"
-            : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
-          boxShadow: trainMode && isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none",
-          transition: "background-color 0.3s ease, box-shadow 0.3s ease",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        <div style={{
-          position: "absolute",
-          top: "3px",
-          left: trainMode ? "46px" : "3px",
-          width: "24px",
-          height: "24px",
-          borderRadius: "50%",
-          backgroundColor: "white",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-          transition: "left 0.3s ease",
-          zIndex: 1,
-        }} />
-        <span style={{
-          position: "absolute",
-          left: trainMode ? "6px" : "28px",
-          fontFamily: "DM Mono, monospace",
-          fontSize: "11px",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          color: trainMode
-            ? isDark ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.9)"
-            : isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)",
-          transition: "left 0.3s ease, color 0.3s ease",
-          userSelect: "none",
-          zIndex: 0,
-        }}>
-          TRAIN
-        </span>
-      </button>
+      <TrainToggle trainMode={trainMode} isDark={isDark} onToggle={toggleTrainMode} />
       <div style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <button onClick={toggleTheme} title={isDark ? "Switch to Light" : "Switch to Dark"}
           style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", filter: theme === "light" ? "brightness(0)" : "none", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", width: "20px", height: "20px", padding: 0 }}>
@@ -403,7 +138,7 @@ function GameContent({
       {flyingCards.map((fc) => (
         <FlyingCard key={fc.id} id={fc.id} from={fc.from} to={fc.to} faceDown={fc.faceDown} rank={fc.rank} suit={fc.suit} onComplete={onFlyingCardComplete} />
       ))}
-      {toast && <Toast key={toastKey} message={toast} isDark={isDark} />}
+      {toast && <GameToast key={toastKey} message={toast} isDark={isDark} />}
 
       <div className="large-toggles fixed top-4 right-3 z-50 items-center gap-3" style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
         {togglesJSX}
@@ -608,6 +343,9 @@ export default function GamePage() {
   const { profile, loading } = useProfile();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const searchParams = useSearchParams();
+  const endSessionParam = searchParams.get("endSession") === "true";
+  const fromDashboardParam = searchParams.get("fromDashboard") === "true";
 
   const [gameReady, setGameReady] = useState(() =>
     typeof window !== "undefined" && sessionStorage.getItem("gameActive") === "true"
@@ -616,10 +354,6 @@ export default function GamePage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [showNewSessionGate, setShowNewSessionGate] = useState(false);
   const [liveBankroll, setLiveBankroll] = useState<number | null>(null);
-
-  const searchParams = useSearchParams();
-  const endSessionParam = searchParams.get("endSession") === "true";
-  const fromDashboardParam = searchParams.get("fromDashboard") === "true";
 
   useEffect(() => {
     if (gameReady && profile && gameBankroll === null) {
@@ -683,15 +417,15 @@ export default function GamePage() {
   if (!gameReady || gameBankroll === null || sessionId === null) {
     return (
       <SessionGate
-      profile={profile}
-      fromDashboard={endSessionParam || fromDashboardParam}
-      startOnNewGame={endSessionParam}
-      onReady={(bankroll, sid) => {
-        sessionStorage.setItem("gameActive", "true");
-        setGameBankroll(bankroll);
-        setSessionId(sid);
-        setGameReady(true);
-      }}
+        profile={profile}
+        fromDashboard={endSessionParam || fromDashboardParam}
+        startOnNewGame={endSessionParam}
+        onReady={(bankroll, sid) => {
+          sessionStorage.setItem("gameActive", "true");
+          setGameBankroll(bankroll);
+          setSessionId(sid);
+          setGameReady(true);
+        }}
       />
     );
   }
