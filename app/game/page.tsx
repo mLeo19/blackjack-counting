@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
+import { useSearchParams } from "next/navigation";
 
 function darken(hex: string): string {
   const map: Record<string, string> = {
@@ -572,6 +573,9 @@ export default function GamePage() {
   const [showNewSessionGate, setShowNewSessionGate] = useState(false);
   const [liveBankroll, setLiveBankroll] = useState<number | null>(null);
 
+  const searchParams = useSearchParams();
+  const endSessionParam = searchParams.get("endSession") === "true";
+
   useEffect(() => {
     if (gameReady && profile && gameBankroll === null) {
       getOpenSession().then((session) => {
@@ -632,18 +636,20 @@ export default function GamePage() {
   }
 
   if (!gameReady || gameBankroll === null || sessionId === null) {
-    return (
-      <SessionGate
-        profile={profile}
-        onReady={(bankroll, sid) => {
-          sessionStorage.setItem("gameActive", "true");
-          setGameBankroll(bankroll);
-          setSessionId(sid);
-          setGameReady(true);
-        }}
-      />
-    );
-  }
+  return (
+    <SessionGate
+      profile={profile}
+      fromDashboard={endSessionParam}
+      startOnNewGame={endSessionParam}
+      onReady={(bankroll, sid) => {
+        sessionStorage.setItem("gameActive", "true");
+        setGameBankroll(bankroll);
+        setSessionId(sid);
+        setGameReady(true);
+      }}
+    />
+  );
+}
 
   return (
     <GameContent

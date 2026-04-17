@@ -9,7 +9,7 @@ import {
   getSessionHistory,
   getTotalNetProfit,
   getRecentSessionsForChart,
-  getCurrentSessionStats,
+  closeSession,
 } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/client";
 import { useCountStore } from "@/store/countStore";
@@ -62,17 +62,22 @@ function BarChart({ data, isDark }: { data: any[]; isDark: boolean }) {
   if (data.length === 0) return null;
 
   const values = data.map((d) => parseFloat(d.profit_percent));
-  const maxAbs = Math.max(...values.map(Math.abs), 1);
-  const chartHeight = 120;
+  const maxVal = Math.max(...values, 0);
+  const minVal = Math.min(...values, 0);
+  const range = Math.max(maxVal - minVal, 1);
+
+  const chartHeight = 140;
   const barWidth = 24;
   const gap = 8;
   const totalWidth = data.length * (barWidth + gap) - gap;
-  const midY = chartHeight / 2;
+  const paddingTop = 8;
+  const paddingBottom = 8;
+  const usableHeight = chartHeight - paddingTop - paddingBottom;
+  const zeroY = paddingTop + (maxVal / range) * usableHeight;
 
   const positiveColor = isDark ? "#00f5ff" : "#15803d";
   const negativeColor = "#ff2d78";
-  const zeroLine = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
-
+  const zeroLineColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
   const formatDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
@@ -82,76 +87,49 @@ function BarChart({ data, isDark }: { data: any[]; isDark: boolean }) {
         height={chartHeight + 24}
         style={{ overflow: "visible", display: "block", margin: "0 auto" }}
       >
-        {/* Zero line */}
-        <line x1={0} y1={midY} x2={Math.max(totalWidth, 200)} y2={midY} stroke={zeroLine} strokeWidth={1} />
-
+        <line x1={0} y1={zeroY} x2={Math.max(totalWidth, 200)} y2={zeroY} stroke={zeroLineColor} strokeWidth={1} />
         {data.map((session, i) => {
           const val = parseFloat(session.profit_percent);
-          const barH = Math.max((Math.abs(val) / maxAbs) * (midY - 8), 2);
-          const x = i * (barWidth + gap);
           const isPos = val >= 0;
-          const barY = isPos ? midY - barH : midY;
+          const barH = Math.max((Math.abs(val) / range) * usableHeight, 2);
+          const x = i * (barWidth + gap);
+          const barY = isPos ? zeroY - barH : zeroY;
           const color = isPos ? positiveColor : negativeColor;
-
           return (
             <g key={session.id}>
               <rect
-                x={x}
-                y={barY}
-                width={barWidth}
-                height={barH}
-                rx={4}
+                x={x} y={barY} width={barWidth} height={barH} rx={4}
                 fill={color}
-                opacity={tooltip && tooltip.date === session.ended_at ? 1 : 0.7}
+                opacity={tooltip && tooltip.date === session.ended_at ? 1 : 0.75}
                 style={{ cursor: "pointer", transition: "opacity 0.15s ease" }}
                 onMouseEnter={(e) => {
-                  const rect = (e.target as SVGRectElement).getBoundingClientRect();
-                  setTooltip({ x: rect.left + rect.width / 2, y: rect.top, value: val, date: session.ended_at });
+                  const svgEl = (e.target as SVGRectElement).closest("svg");
+                  const svgRect = svgEl?.getBoundingClientRect();
+                  if (!svgRect) return;
+                  setTooltip({ x: svgRect.left + x + barWidth / 2, y: svgRect.top + barY, value: val, date: session.ended_at });
                 }}
                 onMouseLeave={() => setTooltip(null)}
               />
-              {/* Glow effect for dark mode */}
               {isDark && (
-                <rect
-                  x={x} y={barY} width={barWidth} height={barH} rx={4}
-                  fill={color} opacity={0.15}
-                  filter="blur(4px)"
-                  style={{ pointerEvents: "none" }}
-                />
+                <rect x={x} y={barY} width={barWidth} height={barH} rx={4} fill={color} opacity={0.12} style={{ pointerEvents: "none", filter: "blur(4px)" }} />
               )}
-              {/* X axis label */}
-              <text
-                x={x + barWidth / 2}
-                y={chartHeight + 16}
-                textAnchor="middle"
-                style={{ fontFamily: "DM Mono, monospace", fontSize: "8px", fill: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.3)" }}
-              >
+              <text x={x + barWidth / 2} y={chartHeight + 16} textAnchor="middle"
+                style={{ fontFamily: "DM Mono, monospace", fontSize: "8px", fill: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.3)" }}>
                 {formatDate(session.ended_at)}
               </text>
             </g>
           );
         })}
       </svg>
-
-      {/* Tooltip */}
       {tooltip && (
         <div style={{
-          position: "fixed",
-          left: tooltip.x,
-          top: tooltip.y - 40,
-          transform: "translateX(-50%)",
-          zIndex: 200,
-          padding: "6px 12px",
-          borderRadius: "999px",
+          position: "fixed", left: tooltip.x, top: tooltip.y - 36, transform: "translateX(-50%)", zIndex: 200,
+          padding: "6px 12px", borderRadius: "999px",
           backgroundColor: isDark ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.95)",
           border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
-          backdropFilter: "blur(8px)",
-          fontFamily: "DM Mono, monospace",
-          fontSize: "11px",
-          fontWeight: 700,
+          backdropFilter: "blur(8px)", fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
           color: tooltip.value >= 0 ? (isDark ? "#00f5ff" : "#15803d") : "#ff2d78",
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
+          whiteSpace: "nowrap", pointerEvents: "none",
           boxShadow: isDark ? "0 4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(0,0,0,0.1)",
         }}>
           {tooltip.value >= 0 ? `+${tooltip.value}%` : `${tooltip.value}%`}
@@ -164,6 +142,7 @@ function BarChart({ data, isDark }: { data: any[]; isDark: boolean }) {
 function formatDuration(startedAt: string, endedAt: string): string {
   const diff = new Date(endedAt).getTime() - new Date(startedAt).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "<1m";
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
   const rem = mins % 60;
@@ -187,6 +166,7 @@ export default function DashboardPage() {
   const [hasMore, setHasMore] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
   const LIMIT = 8;
 
   useEffect(() => {
@@ -195,43 +175,40 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    async function load() {
-      const sessionId = typeof window !== "undefined"
-        ? (await import("@/lib/supabase/client").then(m => m.createClient())
-            .then(s => s.auth.getSession())
-            .then(({ data }) => data.session?.user?.id))
-        : null;
-
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const [p, s, h, chart, profit] = await Promise.all([
-        getProfile(),
-        getLifetimeStats(),
-        getSessionHistory(LIMIT, 0),
-        getRecentSessionsForChart(10),
-        getTotalNetProfit(),
-      ]);
-
-      // get current open session
-      const { data: openSession } = await supabase
-        .from("session_stats")
-        .select("hands_played, hands_won, starting_bankroll, started_at")
-        .eq("user_id", user?.id ?? "")
-        .is("ended_at", null)
-        .single();
-
-      setProfile(p);
-      setStats(s);
-      setSessions(h);
-      setChartData(chart);
-      setTotalNetProfit(profit);
-      setCurrentSession(openSession);
-      setHasMore(h.length === LIMIT);
-      setLoadingData(false);
-    }
     load();
   }, []);
+
+  async function load() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const [p, s, h, chart, profit] = await Promise.all([
+      getProfile(),
+      getLifetimeStats(),
+      getSessionHistory(LIMIT, 0),
+      getRecentSessionsForChart(10),
+      getTotalNetProfit(),
+    ]);
+
+    const { data: openSession } = await supabase
+      .from("session_stats")
+      .select("id, hands_played, hands_won, starting_bankroll, started_at")
+      .eq("user_id", user.id)
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    setProfile(p);
+    setStats(s);
+    setSessions(h);
+    setChartData(chart);
+    setTotalNetProfit(profit);
+    setCurrentSession(openSession ?? null);
+    setHasMore(h.length === LIMIT);
+    setLoadingData(false);
+  }
 
   const loadMore = async () => {
     setLoadingMore(true);
@@ -239,6 +216,12 @@ export default function DashboardPage() {
     setSessions((prev) => [...prev, ...more]);
     setHasMore(more.length === LIMIT);
     setLoadingMore(false);
+  };
+
+  const handleEndSession = async () => {
+  if (!currentSession || !profile) return;
+  sessionStorage.removeItem("gameActive");
+  router.push("/game?endSession=true");
   };
 
   const handleLogout = async () => {
@@ -254,8 +237,6 @@ export default function DashboardPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    // delete all user data — cascade should handle profiles, session_stats, lifetime_stats
     await supabase.from("profiles").delete().eq("user_id", user.id);
     await supabase.auth.signOut();
     sessionStorage.removeItem("gameActive");
@@ -263,12 +244,10 @@ export default function DashboardPage() {
   };
 
   const winRate = stats && stats.hands_played > 0
-    ? Math.round((stats.hands_won / stats.hands_played) * 100)
-    : 0;
+    ? Math.round((stats.hands_won / stats.hands_played) * 100) : 0;
 
   const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-    : "";
+    ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "";
 
   const formatProfit = (val: number | null) => {
     if (val === null || val === undefined) return "—";
@@ -292,8 +271,7 @@ export default function DashboardPage() {
   };
 
   const currentSessionProfit = currentSession && profile
-    ? profile.bankroll - currentSession.starting_bankroll
-    : null;
+    ? profile.bankroll - currentSession.starting_bankroll : null;
 
   return (
     <div className="felt-texture min-h-screen flex flex-col overflow-hidden relative" style={{ color: "var(--text-primary)" }}>
@@ -308,12 +286,16 @@ export default function DashboardPage() {
 
       {/* Top bar */}
       <div className="relative z-10 flex justify-between items-center px-8 py-6"
-        style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(-10px)", transition: "opacity 0.8s ease, transform 0.8s ease" }}
-      >
-        <button onClick={() => router.push("/game")} style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", fontWeight: 700, color: isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)", background: "none", border: "none", cursor: "pointer" }}>
+        style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(-10px)", transition: "opacity 0.8s ease, transform 0.8s ease" }}>
+        <button onClick={() => {
+          sessionStorage.setItem("gameActive", "true");
+          router.push("/game")
+        }}
+          style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", fontWeight: 700, color: isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)", background: "none", border: "none", cursor: "pointer" }}>
           ♠ Soft17
         </button>
-        <button onClick={toggleTheme} className="transition-all hover:scale-110" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "24px", filter: theme === "light" ? "brightness(0)" : "none" }}>
+        <button onClick={toggleTheme} className="transition-all hover:scale-110"
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "24px", filter: theme === "light" ? "brightness(0)" : "none" }}>
           {isDark ? "☀️" : "🌙"}
         </button>
       </div>
@@ -323,8 +305,10 @@ export default function DashboardPage() {
 
         {/* Back button */}
         <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(10px)", transition: "opacity 0.8s ease 0.05s, transform 0.8s ease 0.05s" }}>
-          <button
-            onClick={() => router.push("/game")}
+          <button onClick={() => {
+            sessionStorage.setItem("gameActive", "true");
+            router.push("/game")
+          }}
             style={{ fontFamily: "DM Mono, monospace", fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.6)", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", transition: "color 0.2s ease" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = isDark ? "rgba(0,245,255,1)" : "rgba(107,77,6,1)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = isDark ? "rgba(0,245,255,0.6)" : "rgba(107,77,6,0.6)"; }}
@@ -341,9 +325,11 @@ export default function DashboardPage() {
                 <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200", lineHeight: 1 }}>
                   {profile?.username}
                 </h1>
-                <span style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 700, color: isDark ? "#ffd700" : "#8b6508", textShadow: isDark ? "0 0 16px rgba(255,215,0,0.3)" : "none", lineHeight: 1, paddingBottom: "2px" }}>
-                  ${profile?.bankroll?.toLocaleString()}
-                </span>
+                {currentSession && (
+                  <span style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 700, color: isDark ? "#ffd700" : "#8b6508", textShadow: isDark ? "0 0 16px rgba(255,215,0,0.3)" : "none", lineHeight: 1, paddingBottom: "2px" }}>
+                    ${profile?.bankroll?.toLocaleString()}
+                  </span>
+                )}
               </div>
               <span style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", letterSpacing: "0.08em" }}>
                 Member since {memberSince}
@@ -362,43 +348,22 @@ export default function DashboardPage() {
             <>
               <StatCard label="Hands Played" value={stats?.hands_played?.toLocaleString() ?? "0"} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={150} mounted={mounted} />
               <StatCard label="Win Rate" value={`${winRate}%`} sub={`${stats?.hands_won ?? 0}W — ${stats?.hands_lost ?? 0}L`} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={200} mounted={mounted} />
-              <StatCard
-                label="Total Profit"
-                value={formatProfit(totalNetProfit)}
-                isDark={isDark}
+              <StatCard label="Total Profit" value={formatProfit(totalNetProfit)} isDark={isDark}
                 color={totalNetProfit > 0 ? isDark ? "#00f5ff" : "#15803d" : totalNetProfit < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
-                delay={250}
-                mounted={mounted}
-              />
-              <StatCard
-                label="Best Session"
-                value={formatPercent(stats?.best_session_profit_percent)}
-                isDark={isDark}
+                delay={250} mounted={mounted} />
+              <StatCard label="Best Session" value={formatPercent(stats?.best_session_profit_percent)} isDark={isDark}
                 color={stats?.best_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.best_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
-                delay={300}
-                mounted={mounted}
-              />
-              <StatCard
-                label="Avg Session"
-                value={formatPercent(stats?.avg_session_profit_percent)}
-                isDark={isDark}
+                delay={300} mounted={mounted} />
+              <StatCard label="Avg Session" value={formatPercent(stats?.avg_session_profit_percent)} isDark={isDark}
                 color={stats?.avg_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.avg_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
-                delay={350}
-                mounted={mounted}
-              />
+                delay={350} mounted={mounted} />
             </>
           )}
         </div>
 
         {/* Bar chart */}
         {!loadingData && chartData.length > 1 && (
-          <div
-            style={{
-              opacity: mounted ? 1 : 0,
-              transform: mounted ? "translateY(0)" : "translateY(16px)",
-              transition: "opacity 0.8s ease 0.4s, transform 0.8s ease 0.4s",
-            }}
-          >
+          <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.4s, transform 0.8s ease 0.4s" }}>
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <span style={{ fontFamily: "DM Mono, monospace", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)" }}>
@@ -406,35 +371,22 @@ export default function DashboardPage() {
                 </span>
                 <div style={{ flex: 1, height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)" }} />
               </div>
-              <div style={{
-                padding: "20px",
-                borderRadius: "20px",
-                backgroundColor: isDark ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.5)",
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)"}`,
-                backdropFilter: "blur(12px)",
-              }}>
+              <div style={{ padding: "20px", borderRadius: "20px", backgroundColor: isDark ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.5)", border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)"}`, backdropFilter: "blur(12px)" }}>
                 <BarChart data={chartData} isDark={isDark} />
               </div>
             </div>
           </div>
         )}
 
-        {/* Current session */}
+        {/* Current session — stats only, no button */}
         {!loadingData && currentSession && (
-          <div
-            style={{
-              opacity: mounted ? 1 : 0,
-              transform: mounted ? "translateY(0)" : "translateY(16px)",
-              transition: "opacity 0.8s ease 0.45s, transform 0.8s ease 0.45s",
-            }}
-          >
+          <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.45s, transform 0.8s ease 0.45s" }}>
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <span style={{ fontFamily: "DM Mono, monospace", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)" }}>
                   Current Session
                 </span>
                 <div style={{ flex: 1, height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)" }} />
-                {/* Live indicator */}
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: isDark ? "#00f5ff" : "#15803d", boxShadow: isDark ? "0 0 6px rgba(0,245,255,0.8)" : "none", animation: "pulse-dot 2s ease infinite" }} />
                   <span style={{ fontFamily: "DM Mono, monospace", fontSize: "9px", letterSpacing: "0.1em", textTransform: "uppercase", color: isDark ? "rgba(0,245,255,0.6)" : "rgba(21,128,61,0.7)" }}>Live</span>
@@ -463,10 +415,7 @@ export default function DashboardPage() {
         )}
 
         {/* Session history */}
-        <div
-          className="flex flex-col gap-4"
-          style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.5s, transform 0.8s ease 0.5s" }}
-        >
+        <div className="flex flex-col gap-4" style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.5s, transform 0.8s ease 0.5s" }}>
           <div className="flex items-center gap-3">
             <span style={{ fontFamily: "DM Mono, monospace", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)" }}>
               Session History
@@ -484,20 +433,14 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {/* Header */}
               <div className="flex items-center px-4" style={{ gap: "12px" }}>
                 {["Date", "Hands", "Duration", "Profit", "%"].map((h, i) => (
-                  <span key={h} style={{
-                    fontFamily: "DM Mono, monospace", fontSize: "9px", letterSpacing: "0.1em", textTransform: "uppercase",
-                    color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
-                    flex: i === 0 ? 2 : 1, textAlign: i > 0 ? "right" : "left",
-                  }}>
+                  <span key={h} style={{ fontFamily: "DM Mono, monospace", fontSize: "9px", letterSpacing: "0.1em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", flex: i === 0 ? 2 : 1, textAlign: i > 0 ? "right" : "left" }}>
                     {h}
                   </span>
                 ))}
               </div>
 
-              {/* Rows */}
               {sessions.map((session, i) => (
                 <div key={session.id} className="flex items-center px-4 py-3 rounded-2xl" style={{
                   gap: "12px",
@@ -525,11 +468,8 @@ export default function DashboardPage() {
                 </div>
               ))}
 
-              {/* Load more */}
               {hasMore && (
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
+                <button onClick={loadMore} disabled={loadingMore}
                   style={{
                     marginTop: "8px", padding: "12px", borderRadius: "999px", width: "100%",
                     fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
@@ -555,13 +495,80 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* End Session or Create Session */}
+        {!loadingData && (
+          <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.52s, transform 0.8s ease 0.52s" }}>
+            {currentSession ? (
+              <button
+                onClick={handleEndSession}
+                disabled={endingSession}
+                style={{
+                  width: "100%", padding: "12px", borderRadius: "999px",
+                  fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: endingSession ? "not-allowed" : "pointer", background: "transparent",
+                  border: `1px solid ${isDark ? "rgba(255,45,120,0.25)" : "rgba(180,0,60,0.2)"}`,
+                  color: isDark ? "rgba(255,45,120,0.5)" : "rgba(180,0,60,0.5)",
+                  transition: "all 0.2s ease", opacity: endingSession ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (endingSession) return;
+                  e.currentTarget.style.borderColor = "#ff2d78";
+                  e.currentTarget.style.color = "#ff2d78";
+                  e.currentTarget.style.boxShadow = isDark ? "0 0 20px rgba(255,45,120,0.15)" : "0 4px 16px rgba(255,45,120,0.1)";
+                  e.currentTarget.style.backgroundColor = "rgba(255,45,120,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = isDark ? "rgba(255,45,120,0.25)" : "rgba(180,0,60,0.2)";
+                  e.currentTarget.style.color = isDark ? "rgba(255,45,120,0.5)" : "rgba(180,0,60,0.5)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                {endingSession ? "Ending Session..." : "End Session"}
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  sessionStorage.removeItem("gameActive");
+                  router.push("/game");
+                }}
+                style={{
+                  width: "100%", padding: "12px", borderRadius: "999px",
+                  fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: "pointer", background: "transparent",
+                  border: `1px solid ${isDark ? "rgba(0,245,255,0.25)" : "rgba(107,77,6,0.3)"}`,
+                  color: isDark ? "rgba(0,245,255,0.5)" : "rgba(107,77,6,0.5)",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = isDark ? "rgba(0,245,255,0.7)" : "rgba(107,77,6,0.7)";
+                  e.currentTarget.style.color = isDark ? "#00f5ff" : "rgba(107,77,6,1)";
+                  e.currentTarget.style.boxShadow = isDark ? "0 0 20px rgba(0,245,255,0.15)" : "0 4px 16px rgba(107,77,6,0.1)";
+                  e.currentTarget.style.backgroundColor = isDark ? "rgba(0,245,255,0.05)" : "rgba(107,77,6,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = isDark ? "rgba(0,245,255,0.25)" : "rgba(107,77,6,0.3)";
+                  e.currentTarget.style.color = isDark ? "rgba(0,245,255,0.5)" : "rgba(107,77,6,0.5)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                Create Session
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Logout */}
         <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s" }}>
           <button
             onClick={handleLogout}
             style={{
               width: "100%", padding: "12px", borderRadius: "999px",
-              fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+              fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
               cursor: "pointer", background: "transparent",
               border: `1px solid ${isDark ? "rgba(255,45,120,0.25)" : "rgba(180,0,60,0.2)"}`,
               color: isDark ? "rgba(255,45,120,0.5)" : "rgba(180,0,60,0.5)",
@@ -593,13 +600,13 @@ export default function DashboardPage() {
               </span>
               <div style={{ flex: 1, height: "1px", backgroundColor: isDark ? "rgba(255,45,120,0.1)" : "rgba(180,0,60,0.1)" }} />
             </div>
-
             {!showDeleteConfirm ? (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 style={{
                   width: "100%", padding: "12px", borderRadius: "999px",
-                  fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+                  fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
                   cursor: "pointer", background: "transparent",
                   border: `1px solid ${isDark ? "rgba(255,45,120,0.15)" : "rgba(180,0,60,0.15)"}`,
                   color: isDark ? "rgba(255,45,120,0.35)" : "rgba(180,0,60,0.35)",
@@ -619,43 +626,17 @@ export default function DashboardPage() {
                 Delete Account
               </button>
             ) : (
-              <div style={{
-                padding: "20px",
-                borderRadius: "20px",
-                backgroundColor: isDark ? "rgba(255,45,120,0.05)" : "rgba(255,45,120,0.03)",
-                border: "1px solid rgba(255,45,120,0.2)",
-              }}>
+              <div style={{ padding: "20px", borderRadius: "20px", backgroundColor: isDark ? "rgba(255,45,120,0.05)" : "rgba(255,45,120,0.03)", border: "1px solid rgba(255,45,120,0.2)" }}>
                 <p style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)", marginBottom: "16px", lineHeight: 1.6 }}>
                   This will permanently delete your account, all session history, and lifetime stats. This cannot be undone.
                 </p>
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    style={{
-                      flex: 1, padding: "12px", borderRadius: "999px",
-                      fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-                      cursor: "pointer", background: "transparent",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
-                      color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
+                  <button onClick={() => setShowDeleteConfirm(false)}
+                    style={{ flex: 1, padding: "12px", borderRadius: "999px", fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", background: "transparent", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", transition: "all 0.2s ease" }}>
                     Cancel
                   </button>
-                  <button
-                    onClick={handleDeleteAccount}
-                    disabled={deleting}
-                    style={{
-                      flex: 1, padding: "12px", borderRadius: "999px",
-                      fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-                      cursor: deleting ? "not-allowed" : "pointer",
-                      background: "rgba(255,45,120,0.15)",
-                      border: "1px solid rgba(255,45,120,0.5)",
-                      color: "#ff2d78",
-                      transition: "all 0.2s ease",
-                      opacity: deleting ? 0.6 : 1,
-                    }}
-                  >
+                  <button onClick={handleDeleteAccount} disabled={deleting}
+                    style={{ flex: 1, padding: "12px", borderRadius: "999px", fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: deleting ? "not-allowed" : "pointer", background: "rgba(255,45,120,0.15)", border: "1px solid rgba(255,45,120,0.5)", color: "#ff2d78", transition: "all 0.2s ease", opacity: deleting ? 0.6 : 1 }}>
                     {deleting ? "Deleting..." : "Yes, Delete"}
                   </button>
                 </div>

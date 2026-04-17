@@ -13,9 +13,10 @@ interface SessionGateProps {
   onReady: (bankroll: number, sessionId: string) => void;
   startOnNewGame?: boolean;
   currentBankroll?: number;
+  fromDashboard?: boolean;
 }
 
-export default function SessionGate({ profile, onReady, startOnNewGame = false, currentBankroll }: SessionGateProps) {
+export default function SessionGate({ profile, onReady, startOnNewGame = false, currentBankroll, fromDashboard = false }: SessionGateProps) {
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const isDark = theme === "dark";
@@ -27,8 +28,9 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
   const [newBankroll, setNewBankroll] = useState("");
   const [bankrollFocused, setBankrollFocused] = useState(false);
   const [error, setError] = useState("");
-  const [processing, setProcessing] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [endingToDashboard, setEndingToDashboard] = useState(false);
 
   useEffect(() => {
     if (!startOnNewGame) {
@@ -47,7 +49,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
 
   const handleResume = async () => {
     if (!openSession) return;
-    setProcessing(true);
+    setStartingSession(true);
     sessionStorage.setItem("gameActive", "true");
     onReady(profile.bankroll, openSession.id);
   };
@@ -57,7 +59,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
     if (!newBankroll || isNaN(bankrollNum) || bankrollNum < 100) {
       return setError("Minimum starting bankroll is $100.");
     }
-    setProcessing(true);
+    setStartingSession(true);
 
     if (openSession) {
       await closeSession(openSession.id, currentBankroll ?? profile.bankroll, openSession.starting_bankroll);
@@ -68,7 +70,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
     const sessionId = await createNewSession(bankrollNum);
     if (!sessionId) {
       setError("Failed to create session.");
-      setProcessing(false);
+      setStartingSession(false);
       return;
     }
 
@@ -77,6 +79,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
   };
 
   const handleLogout = async () => {
+    setLoggingOut(true);
     sessionStorage.removeItem("gameActive");
     useCountStore.getState().resetTrainMode();
     const supabase = createClient();
@@ -95,6 +98,17 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
     await supabase.auth.signOut();
     router.push("/");
   };
+
+  const handleEndAndDashboard = async () => {
+    setEndingToDashboard(true);
+    if (openSession) {
+      await closeSession(openSession.id, currentBankroll ?? profile.bankroll, openSession.starting_bankroll);
+    }
+    sessionStorage.removeItem("gameActive");
+    router.push("/dashboard");
+  };
+
+  const isAnyProcessing = startingSession || loggingOut || endingToDashboard;
 
   const inputStyle = (focused: boolean) => ({
     width: "100%",
@@ -124,6 +138,15 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
       </div>
     );
   }
+
+  // determine title
+  const title = startOnNewGame
+    ? "End Current Session"
+    : showNewGame && !openSession
+    ? "Start New Session"
+    : showNewGame
+    ? "End Current Session"
+    : "Welcome back";
 
   return (
     <div className="felt-texture min-h-screen flex flex-col overflow-hidden relative" style={{ color: "var(--text-primary)" }}>
@@ -172,7 +195,7 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
           {/* Header */}
           <div className="flex flex-col items-center gap-1 mb-8">
             <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "24px", fontWeight: 700, color: isDark ? "#ffffff" : "#1a1200" }}>
-              {showNewGame ? "Start New Session" : "Welcome back"}
+              {title}
             </h1>
             <span style={{ fontFamily: "DM Mono, monospace", fontSize: "13px", color: isDark ? "#00f5ff" : "#8b6508", textShadow: isDark ? "0 0 10px rgba(0,245,255,0.4)" : "none" }}>
               {profile.username}
@@ -200,17 +223,12 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
                       Started with ${openSession.starting_bankroll.toLocaleString()}
                     </span>
                   </div>
-                  <SessionButton label="Resume Session" onClick={handleResume} isDark={isDark} disabled={processing || loggingOut} variant="primary" />
+                  <SessionButton label="Resume Session" onClick={handleResume} isDark={isDark} disabled={isAnyProcessing} variant="primary" />
+                  <SessionButton label="End Session" onClick={() => setShowNewGame(true)} isDark={isDark} disabled={isAnyProcessing} variant="secondary" />
                 </>
               )}
-              <SessionButton
-                label="End Session"
-                onClick={() => setShowNewGame(true)}
-                isDark={isDark}
-                disabled={processing || loggingOut}
-                variant="secondary"
-              />
-              <SessionButton label="Log Out" onClick={handleLogout} isDark={isDark} disabled={processing || loggingOut} variant="ghost" />
+              <SessionButton label="Visit Dashboard" onClick={() => router.push("/dashboard")} isDark={isDark} disabled={isAnyProcessing} variant="ghost" />
+              <SessionButton label="Log Out" onClick={handleLogout} isDark={isDark} disabled={isAnyProcessing} variant="ghost" />
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -235,58 +253,88 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
                   Minimum $100
                 </p>
               </div>
+
               {error && (
                 <p style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: "#ff2d78" }}>✦ {error}</p>
               )}
+
+              {/* Back + Start */}
               <div className="flex gap-3">
                 <div style={{ flex: 1 }}>
                   <SessionButton
                     label="← Back"
                     onClick={() => {
-                      if (startOnNewGame) {
+                      if (startOnNewGame && fromDashboard) {
+                        router.push("/dashboard");
+                      } else if (startOnNewGame) {
+                        // came from mid-game End Session — go back to game
                         sessionStorage.setItem("gameActive", "true");
                         onReady(currentBankroll ?? profile.bankroll, openSession?.id ?? "");
                       } else if (openSession) {
                         setShowNewGame(false);
                         setError("");
+                      } else if (fromDashboard) {
+                        router.back();
                       } else {
                         handleLogout();
                       }
                     }}
                     isDark={isDark}
-                    disabled={processing || loggingOut}
+                    disabled={isAnyProcessing}
                     variant="ghost"
                   />
                 </div>
                 <div style={{ flex: 2 }}>
                   <SessionButton
-                    label={processing ? "Starting..." : "Start Session"}
+                    label={startingSession ? "Starting..." : "Start Session"}
                     onClick={handleNewGame}
                     isDark={isDark}
-                    disabled={processing || loggingOut}
+                    disabled={isAnyProcessing}
                     variant="primary"
                   />
                 </div>
               </div>
 
-              {/* End & Log Out — only shown when there's an active session to end */}
+              {/* End & Visit Dashboard — only when there's a session to end */}
+              {(openSession || startOnNewGame) && (
+                <SessionButton
+                  label={endingToDashboard ? "Redirecting..." : "End & Visit Dashboard"}
+                  onClick={handleEndAndDashboard}
+                  isDark={isDark}
+                  disabled={isAnyProcessing}
+                  variant="ghost"
+                />
+              )}
+
+              {/* End & Log Out — only when there's a session to end */}
               {(openSession || startOnNewGame) && (
                 <SessionButton
                   label={loggingOut ? "Logging out..." : "End & Log Out"}
                   onClick={handleEndAndLogout}
                   isDark={isDark}
-                  disabled={processing || loggingOut}
+                  disabled={isAnyProcessing}
                   variant="ghost"
                 />
               )}
 
-              {/* Plain Log Out — shown when there's no session to end */}
+              {/* Visit Dashboard — when no session to end */}
+              {!openSession && !startOnNewGame && (
+                <SessionButton
+                  label="Visit Dashboard"
+                  onClick={() => router.push("/dashboard")}
+                  isDark={isDark}
+                  disabled={isAnyProcessing}
+                  variant="ghost"
+                />
+              )}
+
+              {/* Plain Log Out — when no session to end */}
               {!openSession && !startOnNewGame && (
                 <SessionButton
                   label="Log Out"
                   onClick={handleLogout}
                   isDark={isDark}
-                  disabled={processing || loggingOut}
+                  disabled={isAnyProcessing}
                   variant="ghost"
                 />
               )}
