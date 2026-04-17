@@ -161,7 +161,7 @@ function GameContent({
 
           <div className="flex flex-col items-center justify-center gap-3 py-4 px-4 w-56 stats-panel">
             <div className="flex flex-col items-center gap-2">
-              <div className="small-toggles items-center gap-3">{togglesJSX}</div>
+              <div className="small-toggles items-center gap-3 mb-2">{togglesJSX}</div>
               <div className="flex flex-col items-center">
                 <span className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Bankroll</span>
                 <span className="text-xl font-bold neon-gold-text" style={{ fontFamily: "Playfair Display, serif" }}>${bankroll.toLocaleString()}</span>
@@ -313,7 +313,7 @@ function GameContent({
           .small-toggles { display: flex !important; flex-direction: row; }
         }
         @media (min-width: 641px) and (max-width: 900px) {
-          .stats-panel { padding-top: 48px !important; }
+          .stats-panel { padding-top: 56px !important; }
         }
         @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .btn-appear { animation: fade-in 0.3s ease forwards; }

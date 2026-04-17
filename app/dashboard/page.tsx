@@ -9,7 +9,6 @@ import {
   getSessionHistory,
   getTotalNetProfit,
   getRecentSessionsForChart,
-  closeSession,
 } from "@/lib/supabase/profile";
 import { createClient } from "@/lib/supabase/client";
 import { useCountStore } from "@/store/countStore";
@@ -35,7 +34,6 @@ export default function DashboardPage() {
   const [hasMore, setHasMore] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [endingSession, setEndingSession] = useState(false);
   const LIMIT = 8;
 
   useEffect(() => {
@@ -370,18 +368,16 @@ export default function DashboardPage() {
             {currentSession ? (
               <button
                 onClick={handleEndSession}
-                disabled={endingSession}
                 style={{
                   width: "100%", padding: "12px", borderRadius: "999px",
                   fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
                   letterSpacing: "0.1em", textTransform: "uppercase",
-                  cursor: endingSession ? "not-allowed" : "pointer", background: "transparent",
+                  cursor: "pointer", background: "transparent",
                   border: `1px solid ${isDark ? "rgba(255,45,120,0.25)" : "rgba(180,0,60,0.2)"}`,
                   color: isDark ? "rgba(255,45,120,0.5)" : "rgba(180,0,60,0.5)",
-                  transition: "all 0.2s ease", opacity: endingSession ? 0.5 : 1,
+                  transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  if (endingSession) return;
                   e.currentTarget.style.borderColor = "#ff2d78";
                   e.currentTarget.style.color = "#ff2d78";
                   e.currentTarget.style.boxShadow = isDark ? "0 0 20px rgba(255,45,120,0.15)" : "0 4px 16px rgba(255,45,120,0.1)";
@@ -394,7 +390,7 @@ export default function DashboardPage() {
                   e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
-                {endingSession ? "Ending Session..." : "End Session"}
+                End Session
               </button>
             ) : (
               <button
