@@ -531,7 +531,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => {
                   sessionStorage.removeItem("gameActive");
-                  router.push("/game");
+                  router.push("/game?fromDashboard=true");
                 }}
                 style={{
                   width: "100%", padding: "12px", borderRadius: "999px",

@@ -575,6 +575,7 @@ export default function GamePage() {
 
   const searchParams = useSearchParams();
   const endSessionParam = searchParams.get("endSession") === "true";
+  const fromDashboardParam = searchParams.get("fromDashboard") === "true";
 
   useEffect(() => {
     if (gameReady && profile && gameBankroll === null) {
@@ -636,10 +637,10 @@ export default function GamePage() {
   }
 
   if (!gameReady || gameBankroll === null || sessionId === null) {
-  return (
-    <SessionGate
+    return (
+      <SessionGate
       profile={profile}
-      fromDashboard={endSessionParam}
+      fromDashboard={endSessionParam || fromDashboardParam}
       startOnNewGame={endSessionParam}
       onReady={(bankroll, sid) => {
         sessionStorage.setItem("gameActive", "true");
@@ -647,9 +648,9 @@ export default function GamePage() {
         setSessionId(sid);
         setGameReady(true);
       }}
-    />
-  );
-}
+      />
+    );
+  }
 
   return (
     <GameContent
