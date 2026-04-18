@@ -310,26 +310,51 @@ export function useGameController(initialBankroll?: number) {
   const split = useCallback(async () => {
     const resolved = engineSplit(resolvedGame.current);
     resolvedGame.current = resolved;
-    const activeBet = visibleGame.playerHands[visibleGame.activeHandIndex].bet;
+    const activeHandIndex = visibleGame.activeHandIndex;
+    const activeBet = visibleGame.playerHands[activeHandIndex].bet;
     setVisibleBankroll((prev) => prev - activeBet);
+    setIsAnimating(true);
+
+    // animate and count the two new cards dealt to each split hand
+    const newCard1 = resolved.playerHands[activeHandIndex].cards[1];
+    const newCard2 = resolved.playerHands[activeHandIndex + 1].cards[1];
+
+    // show split hands first
+    setVisibleGame((prev) => ({
+      ...prev,
+      playerHands: resolved.playerHands.map((h, i) => ({
+        ...h,
+        cards: i === activeHandIndex || i === activeHandIndex + 1
+          ? [h.cards[0]] // show only first card initially
+          : h.cards,
+      })),
+      activeHandIndex: resolved.activeHandIndex,
+      shoe: resolved.shoe,
+    }));
+
+    await sleep(200);
+
+    // deal second card to hand 1
+    await dealOneCard(newCard1, "player", 1, activeHandIndex, false);
+    await sleep(80);
+
+    // deal second card to hand 2
+    await dealOneCard(newCard2, "player", 1, activeHandIndex + 1, false);
+    await sleep(80);
 
     if (resolved.phase === "roundOver") {
+      await runSettlement(resolved);
+    } else {
       setVisibleGame((prev) => ({
         ...prev,
-        playerHands: resolved.playerHands,
+        phase: resolved.phase,
         activeHandIndex: resolved.activeHandIndex,
-        shoe: resolved.shoe,
-        bankroll: prev.bankroll,
       }));
-      setIsAnimating(true);
-      await runSettlement(resolved);
-      setIsAnimating(false);
-    } else {
-      setVisibleGame(resolved);
     }
 
     resetHint();
-  }, [visibleGame, runSettlement, resetHint]);
+    setIsAnimating(false);
+  }, [visibleGame, dealOneCard, runSettlement, resetHint]);
 
   const surrender = useCallback(async () => {
     const resolved = engineSurrender(resolvedGame.current);

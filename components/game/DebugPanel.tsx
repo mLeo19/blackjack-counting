@@ -165,6 +165,22 @@ const SCENARIOS: {
     { rank: "2" },   // first card on hand 2 after split
   ],
 },
+{
+  label: "Quad Split",
+  // player gets two 8s, splits twice more to reach 4 hands
+  targets: [
+    { rank: "8" },   // p1
+    { rank: "5" },   // d1
+    { rank: "8" },   // p2
+    { rank: "7" },   // d2
+    { rank: "8" },   // hand 1 after first split → another 8, split again
+    { rank: "2" },   // hand 2 after first split
+    { rank: "8" },   // hand 1 after second split → another 8, split again
+    { rank: "3" },   // hand 3 after second split
+    { rank: "4" },   // hand 1 after third split
+    { rank: "6" },   // hand 4 after third split
+  ],
+},
 ];
 
 export default function DebugPanel({ onScenario, onForceReshuffle }: DebugPanelProps) {

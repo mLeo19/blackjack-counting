@@ -213,7 +213,7 @@ export default function DashboardPage() {
             ))
           ) : (
             <>
-              <StatCard label="Hands Played" value={stats?.hands_played?.toLocaleString() ?? "0"} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={150} mounted={mounted} />
+              <StatCard label="Rounds Played" value={stats?.hands_played?.toLocaleString() ?? "0"} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={150} mounted={mounted} />
               <StatCard label="Win Rate" value={`${winRate}%`} sub={`${stats?.hands_won ?? 0}W — ${stats?.hands_lost ?? 0}L`} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={200} mounted={mounted} />
               <StatCard label="Total Profit" value={formatProfit(totalNetProfit)} isDark={isDark}
                 color={totalNetProfit > 0 ? isDark ? "#00f5ff" : "#15803d" : totalNetProfit < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
@@ -224,6 +224,20 @@ export default function DashboardPage() {
               <StatCard label="Avg Session" value={formatPercent(stats?.avg_session_profit_percent)} isDark={isDark}
                 color={stats?.avg_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.avg_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
                 delay={350} mounted={mounted} />
+              <StatCard
+                label="Strategy Accuracy"
+                value={stats?.strategy_accuracy ? `${stats.strategy_accuracy}%` : "—"}
+                sub={stats?.hint_off_decisions ? `${stats.hint_off_decisions} decisions` : "play without hint"}
+                isDark={isDark}
+                color={
+                  stats?.strategy_accuracy >= 90 ? isDark ? "#00f5ff" : "#15803d"
+                  : stats?.strategy_accuracy >= 70 ? isDark ? "#ffd700" : "#8b6508"
+                  : stats?.strategy_accuracy > 0 ? "#ff2d78"
+                  : isDark ? "#00f5ff" : "#8b6508"
+                }
+                delay={400}
+                mounted={mounted}
+              />
             </>
           )}
         </div>
@@ -261,7 +275,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-wrap gap-4">
                 <div style={{ flex: "1 1 120px", padding: "20px", borderRadius: "16px", backgroundColor: isDark ? "rgba(0,245,255,0.04)" : "rgba(107,77,6,0.04)", border: `1px solid ${isDark ? "rgba(0,245,255,0.1)" : "rgba(107,77,6,0.1)"}` }}>
-                  <span style={{ fontFamily: "DM Mono, monospace", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", display: "block", marginBottom: "6px" }}>Hands</span>
+                  <span style={{ fontFamily: "DM Mono, monospace", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", display: "block", marginBottom: "6px" }}>Rounds</span>
                   <span style={{ fontFamily: "Playfair Display, serif", fontSize: "24px", fontWeight: 700, color: isDark ? "#00f5ff" : "#8b6508" }}>{currentSession.hands_played ?? 0}</span>
                 </div>
                 <div style={{ flex: "1 1 120px", padding: "20px", borderRadius: "16px", backgroundColor: isDark ? "rgba(0,245,255,0.04)" : "rgba(107,77,6,0.04)", border: `1px solid ${isDark ? "rgba(0,245,255,0.1)" : "rgba(107,77,6,0.1)"}` }}>
@@ -301,7 +315,7 @@ export default function DashboardPage() {
           ) : (
             <div className="flex flex-col gap-2">
               <div className="flex items-center px-4" style={{ gap: "12px" }}>
-                {["Date", "Hands", "Duration", "Profit", "%"].map((h, i) => (
+                {["Date", "Rounds", "Duration", "Profit", "%"].map((h, i) => (
                   <span key={h} style={{ fontFamily: "DM Mono, monospace", fontSize: "9px", letterSpacing: "0.1em", textTransform: "uppercase", color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", flex: i === 0 ? 2 : 1, textAlign: i > 0 ? "right" : "left" }}>
                     {h}
                   </span>

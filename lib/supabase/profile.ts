@@ -255,3 +255,32 @@ export async function getCurrentSessionStats(sessionId: string) {
   if (error || !data) return null;
   return data;
 }
+
+export async function updateStrategyStats(hintOffDecisions: number, hintOffCorrect: number) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: existing } = await supabase
+    .from("lifetime_stats")
+    .select("hint_off_decisions, hint_off_correct")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!existing) return;
+
+  const newDecisions = (existing.hint_off_decisions ?? 0) + hintOffDecisions;
+  const newCorrect = (existing.hint_off_correct ?? 0) + hintOffCorrect;
+  const newAccuracy = newDecisions > 0
+    ? parseFloat(((newCorrect / newDecisions) * 100).toFixed(2))
+    : 0;
+
+  await supabase
+    .from("lifetime_stats")
+    .update({
+      hint_off_decisions: newDecisions,
+      hint_off_correct: newCorrect,
+      strategy_accuracy: newAccuracy,
+    })
+    .eq("user_id", user.id);
+}

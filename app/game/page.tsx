@@ -19,10 +19,12 @@ import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCountStore } from "@/store/countStore";
 import { useProfile } from "@/hooks/useProfile";
-import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats } from "@/lib/supabase/profile";
+import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats, updateStrategyStats } from "@/lib/supabase/profile";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
+import DebugPanel from "@/components/game/DebugPanel";
+
 
 function GameContent({
   profile, bankroll: initialBankroll, sessionId, onNewSession, onBankrollChange,
@@ -38,6 +40,7 @@ function GameContent({
     game, isAnimating, flyingCards, onFlyingCardComplete,
     deal, hit, stand, doubleDown, split, surrender,
     takeInsurance, declineInsurance, newRound, newShoe,
+    debugDeal, forceReshuffle
   } = useGameController(initialBankroll);
 
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
@@ -97,9 +100,11 @@ function GameContent({
   const showSplit = !!(showHit && canSplit(activeHand.cards) && bankroll >= activeHand.bet && playerHands.length < 4);
   const showSurrender = !!(showHit && activeHand.cards.length === 2 && !activeHand.isSplit);
 
-  const recommendedAction = hintVisible && activeHand && dealerHand.cards[0] && !dealerHand.cards[0].faceDown
-    ? getBasicStrategy(activeHand, dealerHand.cards[0].rank)
-    : null;
+  const recommendedAction = activeHand && dealerHand.cards[0] && !dealerHand.cards[0].faceDown
+  ? getBasicStrategy(activeHand, dealerHand.cards[0].rank)
+  : null;
+
+  const highlightedAction = hintVisible ? recommendedAction : null;
 
   const handValueStyle = {
     fontFamily: "Playfair Display, serif", fontWeight: 700,
@@ -108,14 +113,32 @@ function GameContent({
     fontSize: "15px",
   };
 
+  const [hintOffDecisions, setHintOffDecisions] = useState(0);
+  const [hintOffCorrect, setHintOffCorrect] = useState(0);
+
+  const trackAndAct = (action: string, fn: () => void) => {
+    console.log("trackAndAct", { hintVisible, recommendedAction, profile: !!profile, sessionId });
+    if (!hintVisible && recommendedAction && profile && sessionId) {
+      setHintOffDecisions((prev) => prev + 1);
+      if (action === recommendedAction) {
+        setHintOffCorrect((prev) => prev + 1);
+      }
+    }
+    fn();
+  };
+
   useEffect(() => {
     if (phase === "roundOver" && profile && sessionId) {
-      const handsPlayed = results.length;
       const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
       const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
       saveBankroll(bankroll);
-      updateSessionStats(sessionId, handsPlayed, handsWon);
-      updateLifetimeStats(handsPlayed, handsWon, handsLost);
+      updateSessionStats(sessionId, 1, handsWon);
+      updateLifetimeStats(1, handsWon, handsLost);
+      if (hintOffDecisions > 0) {
+        updateStrategyStats(hintOffDecisions, hintOffCorrect);
+        setHintOffDecisions(0);
+        setHintOffCorrect(0);
+      }
     }
   }, [phase, bankroll, profile, sessionId]);
 
@@ -255,11 +278,11 @@ function GameContent({
 
           {phase === "playerTurn" && activeHand && !isAnimating && (
             <div className="flex gap-3 flex-wrap justify-center">
-              <ActionButton theme={theme} color="#00f5ff" label="Hit" onClick={hit} highlighted={recommendedAction === "hit"} />
-              <ActionButton theme={theme} color="#ff2d78" label="Stand" onClick={stand} highlighted={recommendedAction === "stand"} />
-              {showDouble && <ActionButton theme={theme} color="#ffd700" label="Double" onClick={doubleDown} highlighted={recommendedAction === "double"} />}
-              {showSplit && <ActionButton theme={theme} color="#a855f7" label="Split" onClick={split} highlighted={recommendedAction === "split"} />}
-              {showSurrender && <ActionButton theme={theme} color="#ff6b35" label="Surrender" onClick={surrender} highlighted={recommendedAction === "surrender"} />}
+              <ActionButton theme={theme} color="#00f5ff" label="Hit" onClick={() => trackAndAct("hit", hit)} highlighted={highlightedAction === "hit"} />
+              <ActionButton theme={theme} color="#ff2d78" label="Stand" onClick={() => trackAndAct("stand", stand)} highlighted={highlightedAction === "stand"} />
+              {showDouble && <ActionButton theme={theme} color="#ffd700" label="Double" onClick={() => trackAndAct("double", doubleDown)} highlighted={highlightedAction === "double"} />}
+              {showSplit && <ActionButton theme={theme} color="#a855f7" label="Split" onClick={() => trackAndAct("split", split)} highlighted={highlightedAction === "split"} />}
+              {showSurrender && <ActionButton theme={theme} color="#ff6b35" label="Surrender" onClick={() => trackAndAct("surrender", surrender)} highlighted={highlightedAction === "surrender"} />}
             </div>
           )}
 
@@ -299,6 +322,7 @@ function GameContent({
         </div>
       </div>
 
+      {/* <DebugPanel onScenario={debugDeal} onForceReshuffle={forceReshuffle}/> */}
       <CountOverlay phase={phase} playerHand={activeHand ?? null} dealerUpCard={dealerHand.cards[0]?.rank ?? null} />
 
       <div style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.8s ease 0.1s" }}>
