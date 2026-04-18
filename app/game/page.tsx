@@ -8,6 +8,7 @@ import BetControls from "@/components/game/BetControls";
 import CountOverlay from "@/components/game/CountOverlay";
 import FloatingCards from "@/components/ui/FloatingCards";
 import SessionGate from "@/app/game/SessionGate";
+import GuestGate from "@/components/game/GuestGate";
 import AvatarMenu from "@/components/game/AvatarMenu";
 import GuestMenu from "@/components/game/GuestMenu";
 import ActionButton from "@/components/game/ActionButton";
@@ -354,6 +355,13 @@ export default function GamePage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [showNewSessionGate, setShowNewSessionGate] = useState(false);
   const [liveBankroll, setLiveBankroll] = useState<number | null>(null);
+  const [guestBankroll, setGuestBankroll] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("guestBankroll");
+      return saved ? parseInt(saved) : null;
+    } catch { return null; }
+  });
 
   useEffect(() => {
     if (gameReady && profile && gameBankroll === null) {
@@ -383,7 +391,23 @@ export default function GamePage() {
   }
 
   if (!profile) {
-    return <GameContent profile={null} bankroll={1000} sessionId={null} onNewSession={() => {}} onBankrollChange={() => {}} />;
+    if (guestBankroll === null) {
+      return (
+        <GuestGate onReady={(bankroll) => setGuestBankroll(bankroll)} />
+      );
+    }
+    return (
+      <GameContent
+        profile={null}
+        bankroll={guestBankroll}
+        sessionId={null}
+        onNewSession={() => {}}
+        onBankrollChange={(b) => {
+          setGuestBankroll(b);
+          try { localStorage.setItem("guestBankroll", b.toString()); } catch {}
+        }}
+      />
+    );
   }
 
   if (showNewSessionGate) {

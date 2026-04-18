@@ -36,7 +36,10 @@ export default function GuestMenu({ isDark, onNewShoe, showNewShoe }: {
                 />
               )}
               <div style={{ height: "1px", backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />
-              <MenuButton label="Exit Game" isDark={isDark} onClick={() => router.push("/")} danger
+              <MenuButton label="Exit Game" isDark={isDark} onClick={() => {
+                localStorage.removeItem("guestBankroll");
+                router.push("/");
+              }} danger
                 icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>}
               />
             </div>

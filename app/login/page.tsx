@@ -67,6 +67,8 @@ export default function LoginPage() {
       return setError("Invalid email or password.");
     }
 
+    localStorage.removeItem("guestBankroll");
+    sessionStorage.setItem("gameActive", "true");
     router.push("/game");
   };
 
