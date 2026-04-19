@@ -181,6 +181,19 @@ const SCENARIOS: {
     { rank: "6" },   // hand 4 after third split
   ],
 },
+{
+  label: "Soft 21 Dealer Bust",
+  targets: [
+    { rank: "A" },  // p1
+    { rank: "2" },  // d1 → dealer shows 2
+    { rank: "4" },  // p2 → soft 15
+    { rank: "7" },  // d2 hole → dealer has 9, must hit
+    { rank: "2" },  // player hit 1 → soft 17
+    { rank: "4" },  // player hit 2 → soft 21
+    { rank: "6" },  // dealer draws → 9+6 = 15, must hit again
+    { rank: "8" },  // dealer draws → 15+8 = 23, bust!
+  ],
+},
 ];
 
 export default function DebugPanel({ onScenario, onForceReshuffle }: DebugPanelProps) {

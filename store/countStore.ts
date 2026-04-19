@@ -39,7 +39,7 @@ export const useCountStore = create<CountStore>((set) => ({
   toggleTrainMode: () => set((state) => ({
     trainMode: !state.trainMode,
     hintVisible: false,
-    hintUsed: false,
+    //hintUsed: false,
   })),
   resetTrainMode: () => set({ trainMode: false, hintVisible: false, hintUsed: false }),
   showHint: () => set({ hintVisible: true, hintUsed: true }),

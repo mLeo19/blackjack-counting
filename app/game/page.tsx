@@ -44,7 +44,7 @@ function GameContent({
   } = useGameController(initialBankroll);
 
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
-  const { hintVisible, trainMode, toggleTrainMode } = useCountStore();
+  const { hintVisible, trainMode, toggleTrainMode, hintUsed } = useCountStore();
   const [mounted, setMounted] = useState(false);
   const [shoeAnimating, setShoeAnimating] = useState(false);
   const [shoePhase, setShoePhase] = useState<"out" | "in" | null>(null);
@@ -117,8 +117,8 @@ function GameContent({
   const [hintOffCorrect, setHintOffCorrect] = useState(0);
 
   const trackAndAct = (action: string, fn: () => void) => {
-    console.log("trackAndAct", { hintVisible, recommendedAction, profile: !!profile, sessionId });
-    if (!hintVisible && recommendedAction && profile && sessionId) {
+    const hintUsed = useCountStore.getState().hintUsed;
+    if (!hintUsed && recommendedAction && profile && sessionId) {
       setHintOffDecisions((prev) => prev + 1);
       if (action === recommendedAction) {
         setHintOffCorrect((prev) => prev + 1);
@@ -128,19 +128,19 @@ function GameContent({
   };
 
   useEffect(() => {
-    if (phase === "roundOver" && profile && sessionId) {
-      const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
-      const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
-      saveBankroll(bankroll);
-      updateSessionStats(sessionId, 1, handsWon);
-      updateLifetimeStats(1, handsWon, handsLost);
-      if (hintOffDecisions > 0) {
-        updateStrategyStats(hintOffDecisions, hintOffCorrect);
-        setHintOffDecisions(0);
-        setHintOffCorrect(0);
-      }
+  if (phase === "roundOver" && profile && sessionId && results.length > 0) {
+    const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
+    const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
+    saveBankroll(bankroll);
+    updateSessionStats(sessionId, 1, handsWon);
+    updateLifetimeStats(1, handsWon, handsLost);
+    if (hintOffDecisions > 0) {
+      updateStrategyStats(hintOffDecisions, hintOffCorrect);
+      setHintOffDecisions(0);
+      setHintOffCorrect(0);
     }
-  }, [phase, bankroll, profile, sessionId]);
+  }
+}, [phase, bankroll, profile, sessionId, results]);
 
   const togglesJSX = (
     <>

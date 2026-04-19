@@ -140,6 +140,8 @@ export default function DashboardPage() {
   const currentSessionProfit = currentSession && profile
     ? profile.bankroll - currentSession.starting_bankroll : null;
 
+  const combinedProfit = totalNetProfit + (currentSessionProfit ?? 0);
+
   return (
     <div className="felt-texture min-h-screen flex flex-col overflow-hidden relative" style={{ color: "var(--text-primary)" }}>
       <FloatingCards isDark={isDark} count={12} />
@@ -214,16 +216,27 @@ export default function DashboardPage() {
           ) : (
             <>
               <StatCard label="Rounds Played" value={stats?.hands_played?.toLocaleString() ?? "0"} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={150} mounted={mounted} />
-              <StatCard label="Win Rate" value={`${winRate}%`} sub={`${stats?.hands_won ?? 0}W — ${stats?.hands_lost ?? 0}L`} isDark={isDark} color={isDark ? "#00f5ff" : "#8b6508"} delay={200} mounted={mounted} />
-              <StatCard label="Total Profit" value={formatProfit(totalNetProfit)} isDark={isDark}
-                color={totalNetProfit > 0 ? isDark ? "#00f5ff" : "#15803d" : totalNetProfit < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
-                delay={250} mounted={mounted} />
-              <StatCard label="Best Session" value={formatPercent(stats?.best_session_profit_percent)} isDark={isDark}
-                color={stats?.best_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.best_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
-                delay={300} mounted={mounted} />
-              <StatCard label="Avg Session" value={formatPercent(stats?.avg_session_profit_percent)} isDark={isDark}
-                color={stats?.avg_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.avg_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
-                delay={350} mounted={mounted} />
+              <StatCard
+                label="Win Rate"
+                value={`${winRate}%`}
+                sub={`${stats?.hands_won ?? 0}W — ${stats?.hands_lost ?? 0}L`}
+                isDark={isDark}
+                color={
+                  stats?.hands_played > 0
+                  ? winRate >= 50 ? isDark ? "#00f5ff" : "#15803d" : "#ff2d78"
+                  : isDark ? "#00f5ff" : "#8b6508"
+                }
+                delay={200}
+                mounted={mounted}
+              />
+              <StatCard
+                label="Total Profit"
+                value={formatProfit(combinedProfit)}
+                isDark={isDark}
+                color={combinedProfit > 0 ? isDark ? "#00f5ff" : "#15803d" : combinedProfit < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
+                delay={250}
+                mounted={mounted}
+              />
               <StatCard
                 label="Strategy Accuracy"
                 value={stats?.strategy_accuracy ? `${stats.strategy_accuracy}%` : "—"}
@@ -238,6 +251,12 @@ export default function DashboardPage() {
                 delay={400}
                 mounted={mounted}
               />
+              <StatCard label="Best Session" value={formatPercent(stats?.best_session_profit_percent)} isDark={isDark}
+                color={stats?.best_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.best_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
+                delay={300} mounted={mounted} />
+              <StatCard label="Avg Session" value={formatPercent(stats?.avg_session_profit_percent)} isDark={isDark}
+                color={stats?.avg_session_profit_percent > 0 ? isDark ? "#00f5ff" : "#15803d" : stats?.avg_session_profit_percent < 0 ? "#ff2d78" : isDark ? "#00f5ff" : "#8b6508"}
+                delay={350} mounted={mounted} />
             </>
           )}
         </div>
