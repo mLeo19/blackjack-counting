@@ -42,7 +42,7 @@ export default function CountOverlay({ phase, playerHand, dealerUpCard }: CountO
   };
 
   return (
-    <div className="fixed bottom-6 left-6 z-40">
+    <div className="fixed left-3 z-40" style={{ top: "52%" }}>
       <div
         className="flex flex-col gap-2 px-4 py-3 rounded-2xl"
         style={{

@@ -34,12 +34,16 @@ const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
 let flyingCardIdCounter = 0;
 
-export function useGameController(initialBankroll?: number) {
+export function useGameController(initialBankroll?: number, initialShoe?: Card[] | null) {
   const { getShoePosition, getDealerPosition, getPlayerPosition } = useShoeContext();
   const { addCount, setTrueCount, resetCount, resetHint, clearHistory } = useCountStore();
 
   const initial = initialBankroll !== undefined && initialBankroll !== null
-    ? { ...createInitialState(), bankroll: initialBankroll }
+    ? {
+        ...createInitialState(),
+        bankroll: initialBankroll,
+        ...(initialShoe && initialShoe.length > 0 ? { shoe: initialShoe as Card[] } : {}),
+      }
     : createInitialState();
 
   const [visibleGame, setVisibleGame] = useState<GameState>(initial);

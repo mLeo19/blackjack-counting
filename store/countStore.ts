@@ -14,6 +14,7 @@ interface CountStore {
   countHistory: CountEntry[];
   addCount: (value: number, rank: string) => void;
   setTrueCount: (value: number) => void;
+  setRunningCount: (value: number) => void;
   resetCount: () => void;
   toggleTrainMode: () => void;
   resetTrainMode: () => void;
@@ -34,6 +35,7 @@ export const useCountStore = create<CountStore>((set) => ({
     runningCount: state.runningCount + value,
     countHistory: [...state.countHistory, { value, rank }],
   })),
+  setRunningCount: (value) => set({ runningCount: value }),
   setTrueCount: (value) => set({ trueCount: value }),
   resetCount: () => set({ runningCount: 0, trueCount: 0, countHistory: [] }),
   toggleTrainMode: () => set((state) => ({

@@ -6,7 +6,6 @@ import { useTheme } from "@/context/ThemeContext";
 interface BetControlsProps {
   bankroll: number;
   onDeal: (bet: number) => void;
-  minBet?: number;
 }
 
 function getChips(bankroll: number) {
@@ -113,7 +112,7 @@ function Chip({ value, color, border, shine, label, disabled, onClick, size = "l
   );
 }
 
-export default function BetControls({ bankroll, onDeal, minBet = 10 }: BetControlsProps) {
+export default function BetControls({ bankroll, onDeal }: BetControlsProps) {
   const [bet, setBet] = useState(0);
   const [chipStack, setChipStack] = useState<ReturnType<typeof getChips>[0][]>([]);
   const { theme } = useTheme();
@@ -131,14 +130,16 @@ export default function BetControls({ bankroll, onDeal, minBet = 10 }: BetContro
     setChipStack([]);
   };
 
+  const effectiveMinBet = CHIPS[0].value;
+
   const handleDeal = () => {
-    if (bet < minBet || bet > bankroll) return;
+    if (bet < effectiveMinBet || bet > bankroll) return;
     onDeal(bet);
     setBet(0);
     setChipStack([]);
   };
 
-  const canDeal = bet >= minBet && bet <= bankroll;
+  const canDeal = bet >= effectiveMinBet && bet <= bankroll;
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -178,7 +179,7 @@ export default function BetControls({ bankroll, onDeal, minBet = 10 }: BetContro
             key={chip.value}
             {...chip}
             size="lg"
-            disabled={bet + chip.value > bankroll || bankroll < minBet}
+            disabled={bet + chip.value > bankroll || bankroll < CHIPS[0].value}
             onClick={() => addChip(chip)}
           />
         ))}

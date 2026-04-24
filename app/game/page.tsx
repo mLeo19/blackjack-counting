@@ -19,18 +19,23 @@ import { useShoeContext } from "@/context/ShoeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCountStore } from "@/store/countStore";
 import { useProfile } from "@/hooks/useProfile";
-import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats, updateStrategyStats } from "@/lib/supabase/profile";
+import { saveBankroll, Profile, getOpenSession, updateSessionStats, updateLifetimeStats, updateStrategyStats, saveShoeAndCount } from "@/lib/supabase/profile";
 import { decksRemaining } from "@/lib/blackjack/deck";
 import { getHandValue, canSplit, canDouble } from "@/lib/blackjack/hand";
 import { getBasicStrategy } from "@/lib/counting/basicStrategy";
 import DebugPanel from "@/components/game/DebugPanel";
+import { Card as CardType } from "@/types";
+import { calculateTrueCount } from "@/lib/counting/hiLo";
+import { createInitialState } from "@/lib/blackjack/engine";
 
 
 function GameContent({
-  profile, bankroll: initialBankroll, sessionId, onNewSession, onBankrollChange,
+  profile, bankroll: initialBankroll, sessionId, onNewSession, onBankrollChange, shoe: initialShoe, runningCount: initialRunningCount,
 }: {
   profile: Profile | null; bankroll: number; sessionId: string | null;
   onNewSession: () => void; onBankrollChange: (b: number) => void;
+  shoe?: CardType[] | null;
+  runningCount?: number;
 }) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -41,10 +46,10 @@ function GameContent({
     deal, hit, stand, doubleDown, split, surrender,
     takeInsurance, declineInsurance, newRound, newShoe,
     debugDeal, forceReshuffle
-  } = useGameController(initialBankroll);
+  } = useGameController(initialBankroll, initialShoe as CardType[]?? null);
 
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
-  const { hintVisible, trainMode, toggleTrainMode, hintUsed } = useCountStore();
+  const { hintVisible, trainMode, toggleTrainMode, resetCount, clearHistory } = useCountStore();
   const [mounted, setMounted] = useState(false);
   const [shoeAnimating, setShoeAnimating] = useState(false);
   const [shoePhase, setShoePhase] = useState<"out" | "in" | null>(null);
@@ -53,10 +58,20 @@ function GameContent({
   const [toastKey, setToastKey] = useState(0);
 
   useEffect(() => {
-    if (!profile) useCountStore.getState().resetTrainMode();
-    const timer = setTimeout(() => setMounted(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
+  if (!profile) useCountStore.getState().resetTrainMode();
+  if (initialRunningCount !== undefined && initialRunningCount !== null) {
+    useCountStore.getState().setRunningCount(initialRunningCount);
+    // recalculate true count from restored running count + shoe size
+    const decksLeft = decksRemaining(initialShoe ?? []);
+    const trueCount = calculateTrueCount(initialRunningCount, decksLeft);
+    useCountStore.getState().setTrueCount(trueCount);
+  } else {
+    resetCount();
+  }
+  clearHistory();
+  const timer = setTimeout(() => setMounted(true), 50);
+  return () => clearTimeout(timer);
+}, []);
 
   const { phase, playerHands, dealerHand, bankroll, results, activeHandIndex, shoe } = game;
   const activeHand = playerHands[activeHandIndex];
@@ -84,6 +99,7 @@ function GameContent({
     setShoePhase("out");
     await new Promise((res) => setTimeout(res, currentSlots * 18 + 500));
     newShoe();
+    if (sessionId) saveShoeAndCount(sessionId, createInitialState().shoe, 0);
     setAnimatingSlots(totalSlots);
     setShoePhase("in");
     await new Promise((res) => setTimeout(res, totalSlots * 18 + 500));
@@ -132,6 +148,7 @@ function GameContent({
     const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
     const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
     saveBankroll(bankroll);
+    saveShoeAndCount(sessionId, shoe, useCountStore.getState().runningCount);
     updateSessionStats(sessionId, 1, handsWon);
     updateLifetimeStats(1, handsWon, handsLost);
     if (hintOffDecisions > 0) {
@@ -141,6 +158,8 @@ function GameContent({
     }
   }
 }, [phase, bankroll, profile, sessionId, results]);
+
+  
 
   const togglesJSX = (
     <>
@@ -387,12 +406,17 @@ export default function GamePage() {
     } catch { return null; }
   });
 
+  const [gameShoe, setGameShoe] = useState<CardType[] | null>(null);
+  const [gameRunningCount, setGameRunningCount] = useState<number>(0);
+
   useEffect(() => {
     if (gameReady && profile && gameBankroll === null) {
       getOpenSession().then((session) => {
         if (session) {
           setGameBankroll(profile.bankroll);
           setSessionId(session.id);
+          setGameShoe(session.shoe as CardType[] ?? null);
+          setGameRunningCount(session.running_count ?? 0);
         } else {
           setGameReady(false);
         }
@@ -446,6 +470,8 @@ export default function GamePage() {
           setSessionId(sid);
           setGameReady(true);
           setShowNewSessionGate(false);
+          setGameShoe(null);
+          setGameRunningCount(0);
           setLiveBankroll(null);
         }}
       />
@@ -473,6 +499,8 @@ export default function GamePage() {
           setGameBankroll(bankroll);
           setSessionId(sid);
           setGameReady(true);
+          setGameShoe(null);
+          setGameRunningCount(0);
         }}
       />
     );
@@ -483,6 +511,8 @@ export default function GamePage() {
       profile={profile}
       bankroll={gameBankroll}
       sessionId={sessionId}
+      shoe={gameShoe}
+      runningCount={gameRunningCount}
       onNewSession={handleNewSession}
       onBankrollChange={setLiveBankroll}
     />

@@ -17,6 +17,8 @@ export interface SessionStats {
   hands_won: number;
   started_at: string;
   ended_at: string | null;
+  shoe: { rank: string; suit: string }[] | null;
+  running_count: number | null;
 }
 
 export async function getProfile(): Promise<Profile | null> {
@@ -283,4 +285,16 @@ export async function updateStrategyStats(hintOffDecisions: number, hintOffCorre
       strategy_accuracy: newAccuracy,
     })
     .eq("user_id", user.id);
+}
+
+export async function saveShoeAndCount(
+  sessionId: string,
+  shoe: { rank: string; suit: string }[],
+  runningCount: number,
+): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from("session_stats")
+    .update({ shoe, running_count: runningCount })
+    .eq("id", sessionId);
 }

@@ -68,7 +68,7 @@ export default function LoginPage() {
     }
 
     localStorage.removeItem("guestBankroll");
-    sessionStorage.setItem("gameActive", "true");
+    //sessionStorage.setItem("gameActive", "true");
     router.push("/game");
   };
 
