@@ -120,7 +120,14 @@ function GameContent({
   ? getBasicStrategy(activeHand, dealerHand.cards[0].rank)
   : null;
 
-  const highlightedAction = hintVisible ? recommendedAction : null;
+  const resolvedAction = (() => {
+    if (!recommendedAction) return null;
+    if (recommendedAction === "double" && !showDouble) return "hit";
+    if (recommendedAction === "split" && !showSplit) return "hit";
+    return recommendedAction;
+  })();
+
+  const highlightedAction = hintVisible ? resolvedAction : null;
 
   const handValueStyle = {
     fontFamily: "Playfair Display, serif", fontWeight: 700,
@@ -464,14 +471,14 @@ export default function GamePage() {
         profile={profile}
         startOnNewGame={true}
         currentBankroll={liveBankroll ?? gameBankroll ?? profile.bankroll}
-        onReady={(bankroll, sid) => {
+        onReady={(bankroll, sid, shoe, runningCount) => {
           sessionStorage.setItem("gameActive", "true");
           setGameBankroll(bankroll);
           setSessionId(sid);
           setGameReady(true);
           setShowNewSessionGate(false);
-          setGameShoe(null);
-          setGameRunningCount(0);
+          setGameShoe(shoe ?? null);
+          setGameRunningCount(runningCount ?? 0);
           setLiveBankroll(null);
         }}
       />
@@ -494,13 +501,13 @@ export default function GamePage() {
         profile={profile}
         fromDashboard={endSessionParam || fromDashboardParam}
         startOnNewGame={endSessionParam}
-        onReady={(bankroll, sid) => {
+        onReady={(bankroll, sid, shoe, runningCount) => {
           sessionStorage.setItem("gameActive", "true");
           setGameBankroll(bankroll);
           setSessionId(sid);
           setGameReady(true);
-          setGameShoe(null);
-          setGameRunningCount(0);
+          setGameShoe(shoe ?? null);
+          setGameRunningCount(runningCount ?? 0);
         }}
       />
     );

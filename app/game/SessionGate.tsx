@@ -7,10 +7,11 @@ import { Profile, SessionStats, getOpenSession, closeSession, createNewSession, 
 import { createClient } from "@/lib/supabase/client";
 import { useCountStore } from "@/store/countStore";
 import FloatingCards from "@/components/ui/FloatingCards";
+import { Card as CardType } from "@/types";
 
 interface SessionGateProps {
   profile: Profile;
-  onReady: (bankroll: number, sessionId: string) => void;
+  onReady: (bankroll: number, sessionId: string, shoe?: CardType[] | null, runningCount?: number) => void;
   startOnNewGame?: boolean;
   currentBankroll?: number;
   fromDashboard?: boolean;
@@ -51,7 +52,12 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
     if (!openSession) return;
     setStartingSession(true);
     sessionStorage.setItem("gameActive", "true");
-    onReady(profile.bankroll, openSession.id);
+    onReady(
+      profile.bankroll,
+      openSession.id,
+      (openSession.shoe as CardType[]) ?? null,
+      openSession.running_count ?? 0
+    );
   };
 
   const handleNewGame = async () => {
@@ -269,7 +275,12 @@ export default function SessionGate({ profile, onReady, startOnNewGame = false, 
                       } else if (startOnNewGame) {
                         // came from mid-game End Session — go back to game
                         sessionStorage.setItem("gameActive", "true");
-                        onReady(currentBankroll ?? profile.bankroll, openSession?.id ?? "");
+                        onReady(
+                          currentBankroll ?? profile.bankroll,
+                          openSession?.id ?? "",
+                          (openSession?.shoe as CardType[]) ?? null,
+                          openSession?.running_count ?? 0
+                        );
                       } else if (openSession) {
                         setShowNewGame(false);
                         setError("");

@@ -32,8 +32,6 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const LIMIT = 8;
 
   useEffect(() => {
@@ -96,17 +94,6 @@ export default function DashboardPage() {
     useCountStore.getState().resetTrainMode();
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/");
-  };
-
-  const handleDeleteAccount = async () => {
-    setDeleting(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("profiles").delete().eq("user_id", user.id);
-    await supabase.auth.signOut();
-    sessionStorage.removeItem("gameActive");
     router.push("/");
   };
 
@@ -488,61 +475,6 @@ export default function DashboardPage() {
             Log Out
           </button>
         </div>
-
-        {/* Danger zone */}
-        <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.8s ease 0.6s, transform 0.8s ease 0.6s" }}>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <span style={{ fontFamily: "DM Mono, monospace", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "rgba(255,45,120,0.4)" : "rgba(180,0,60,0.4)" }}>
-                Danger Zone
-              </span>
-              <div style={{ flex: 1, height: "1px", backgroundColor: isDark ? "rgba(255,45,120,0.1)" : "rgba(180,0,60,0.1)" }} />
-            </div>
-            {!showDeleteConfirm ? (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                style={{
-                  width: "100%", padding: "12px", borderRadius: "999px",
-                  fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700,
-                  letterSpacing: "0.1em", textTransform: "uppercase",
-                  cursor: "pointer", background: "transparent",
-                  border: `1px solid ${isDark ? "rgba(255,45,120,0.15)" : "rgba(180,0,60,0.15)"}`,
-                  color: isDark ? "rgba(255,45,120,0.35)" : "rgba(180,0,60,0.35)",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,45,120,0.4)";
-                  e.currentTarget.style.color = "#ff2d78";
-                  e.currentTarget.style.backgroundColor = "rgba(255,45,120,0.04)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = isDark ? "rgba(255,45,120,0.15)" : "rgba(180,0,60,0.15)";
-                  e.currentTarget.style.color = isDark ? "rgba(255,45,120,0.35)" : "rgba(180,0,60,0.35)";
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }}
-              >
-                Delete Account
-              </button>
-            ) : (
-              <div style={{ padding: "20px", borderRadius: "20px", backgroundColor: isDark ? "rgba(255,45,120,0.05)" : "rgba(255,45,120,0.03)", border: "1px solid rgba(255,45,120,0.2)" }}>
-                <p style={{ fontFamily: "DM Mono, monospace", fontSize: "11px", color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)", marginBottom: "16px", lineHeight: 1.6 }}>
-                  This will permanently delete your account, all session history, and lifetime stats. This cannot be undone.
-                </p>
-                <div className="flex gap-3">
-                  <button onClick={() => setShowDeleteConfirm(false)}
-                    style={{ flex: 1, padding: "12px", borderRadius: "999px", fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", background: "transparent", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", transition: "all 0.2s ease" }}>
-                    Cancel
-                  </button>
-                  <button onClick={handleDeleteAccount} disabled={deleting}
-                    style={{ flex: 1, padding: "12px", borderRadius: "999px", fontFamily: "DM Mono, monospace", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: deleting ? "not-allowed" : "pointer", background: "rgba(255,45,120,0.15)", border: "1px solid rgba(255,45,120,0.5)", color: "#ff2d78", transition: "all 0.2s ease", opacity: deleting ? 0.6 : 1 }}>
-                    {deleting ? "Deleting..." : "Yes, Delete"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
       </div>
 
       <style>{`
