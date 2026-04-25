@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Card from "@/components/game/Card";
 import FlyingCard from "@/components/game/FlyingCard";
@@ -46,7 +46,7 @@ function GameContent({
     deal, hit, stand, doubleDown, split, surrender,
     takeInsurance, declineInsurance, newRound, newShoe,
     debugDeal, forceReshuffle
-  } = useGameController(initialBankroll, initialShoe as CardType[]?? null);
+  } = useGameController(initialBankroll, initialShoe as CardType[] ?? null);
 
   const { shoeRef, dealerHandRef, playerHandRefs } = useShoeContext();
   const { hintVisible, trainMode, toggleTrainMode, resetCount, clearHistory } = useCountStore();
@@ -58,20 +58,19 @@ function GameContent({
   const [toastKey, setToastKey] = useState(0);
 
   useEffect(() => {
-  if (!profile) useCountStore.getState().resetTrainMode();
-  if (initialRunningCount !== undefined && initialRunningCount !== null) {
-    useCountStore.getState().setRunningCount(initialRunningCount);
-    // recalculate true count from restored running count + shoe size
-    const decksLeft = decksRemaining(initialShoe ?? []);
-    const trueCount = calculateTrueCount(initialRunningCount, decksLeft);
-    useCountStore.getState().setTrueCount(trueCount);
-  } else {
-    resetCount();
-  }
-  clearHistory();
-  const timer = setTimeout(() => setMounted(true), 50);
-  return () => clearTimeout(timer);
-}, []);
+    if (!profile) useCountStore.getState().resetTrainMode();
+    if (initialRunningCount !== undefined && initialRunningCount !== null) {
+      useCountStore.getState().setRunningCount(initialRunningCount);
+      const decksLeft = decksRemaining(initialShoe ?? []);
+      const trueCount = calculateTrueCount(initialRunningCount, decksLeft);
+      useCountStore.getState().setTrueCount(trueCount);
+    } else {
+      resetCount();
+    }
+    clearHistory();
+    const timer = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const { phase, playerHands, dealerHand, bankroll, results, activeHandIndex, shoe } = game;
   const activeHand = playerHands[activeHandIndex];
@@ -117,8 +116,8 @@ function GameContent({
   const showSurrender = !!(showHit && activeHand.cards.length === 2 && !activeHand.isSplit);
 
   const recommendedAction = activeHand && dealerHand.cards[0] && !dealerHand.cards[0].faceDown
-  ? getBasicStrategy(activeHand, dealerHand.cards[0].rank)
-  : null;
+    ? getBasicStrategy(activeHand, dealerHand.cards[0].rank)
+    : null;
 
   const resolvedAction = (() => {
     if (!recommendedAction) return null;
@@ -151,22 +150,20 @@ function GameContent({
   };
 
   useEffect(() => {
-  if (phase === "roundOver" && profile && sessionId && results.length > 0) {
-    const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
-    const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
-    saveBankroll(bankroll);
-    saveShoeAndCount(sessionId, shoe, useCountStore.getState().runningCount);
-    updateSessionStats(sessionId, 1, handsWon);
-    updateLifetimeStats(1, handsWon, handsLost);
-    if (hintOffDecisions > 0) {
-      updateStrategyStats(hintOffDecisions, hintOffCorrect);
-      setHintOffDecisions(0);
-      setHintOffCorrect(0);
+    if (phase === "roundOver" && profile && sessionId && results.length > 0) {
+      const handsWon = results.filter((r) => r === "win" || r === "blackjack").length;
+      const handsLost = results.filter((r) => r === "lose" || r === "bust").length;
+      saveBankroll(bankroll);
+      saveShoeAndCount(sessionId, shoe, useCountStore.getState().runningCount);
+      updateSessionStats(sessionId, 1, handsWon);
+      updateLifetimeStats(1, handsWon, handsLost);
+      if (hintOffDecisions > 0) {
+        updateStrategyStats(hintOffDecisions, hintOffCorrect);
+        setHintOffDecisions(0);
+        setHintOffCorrect(0);
+      }
     }
-  }
-}, [phase, bankroll, profile, sessionId, results]);
-
-  
+  }, [phase, bankroll, profile, sessionId, results]);
 
   const togglesJSX = (
     <>
@@ -390,7 +387,7 @@ function GameContent({
   );
 }
 
-export default function GamePage() {
+function GamePageInner() {
   const { profile, loading } = useProfile();
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -447,9 +444,7 @@ export default function GamePage() {
 
   if (!profile) {
     if (guestBankroll === null) {
-      return (
-        <GuestGate onReady={(bankroll) => setGuestBankroll(bankroll)} />
-      );
+      return <GuestGate onReady={(bankroll) => setGuestBankroll(bankroll)} />;
     }
     return (
       <GameContent
@@ -523,5 +518,13 @@ export default function GamePage() {
       onNewSession={handleNewSession}
       onBankrollChange={setLiveBankroll}
     />
+  );
+}
+
+export default function GamePage() {
+  return (
+    <Suspense>
+      <GamePageInner />
+    </Suspense>
   );
 }
